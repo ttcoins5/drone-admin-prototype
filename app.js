@@ -160,10 +160,12 @@ const pageDocs = {
     ]
   },
   orders: {
-    summary: "查看与管理全部商品订单，支持按状态与飞手需求筛选。",
+    summary: "查看与管理全部商品订单。列表「状态」为当前节点；完整流转路径因下单快照（在线支付 / 飞手服务）不同而不同。",
     operations: [
       "按订单号、用户、商品、状态、是否需要飞手筛选",
-      "点击「查看详情」进入订单详情，可进行派单等操作"
+      "列表状态列 hover 可查看该单完整流转路径",
+      "点击「查看详情」进入订单详情，顶部步骤条展示动态流转进度",
+      "需飞手服务的订单可在详情页分配飞手"
     ],
     fields: [
       ["订单号", "系统唯一订单编号"],
@@ -171,21 +173,30 @@ const pageDocs = {
       ["商品/服务", "所购商品名称"],
       ["金额", "订单应付金额，线下报价类显示文案"],
       ["需要飞手", "下单时快照，表示是否需分配飞手"],
-      ["状态", "待付款 → 待派单 → 待服务 → 已完成 → 待评价"]
+      ["状态", "当前流转节点；合法值因快照组合而异，见订单详情说明"],
+      ["流转路径（在线支付+飞手）", "订单生成 → 待付款 → 待派单 → 待服务 → 待评价 → 已完成"],
+      ["流转路径（在线支付+无飞手）", "订单生成 → 待付款 → 待交付 → 待评价 → 已完成"],
+      ["流转路径（非在线支付+飞手）", "订单生成 → 待派单 → 待服务 → 待评价 → 已完成"],
+      ["流转路径（非在线支付+无飞手）", "订单生成 → 待交付 → 待评价 → 已完成"],
+      ["需要预约", "不影响列表状态与步骤条，仅详情页展示「预约信息」面板"]
     ]
   },
   "order-detail": {
-    summary: "查看单笔订单全流程状态、信息快照及飞手分配情况。",
+    summary: "查看单笔订单动态流转、信息快照、预约信息及飞手分配情况。",
     operations: [
-      "顶部步骤条展示订单当前进度",
-      "点击「分配 / 调整飞手」选择一名或多名飞手，确认后立即生效",
-      "飞手无需二次确认；分配后订单进入待服务"
+      "顶部步骤条按下单快照（在线支付 / 飞手服务）动态生成，非固定 5 步",
+      "步骤条下方展示本单完整流转路径摘要",
+      "「订单信息快照」展示金额与业务属性（下单时保存，不可改）",
+      "商品需预约时展示「预约信息」面板；无需预约则不展示",
+      "需飞手服务时展示「飞手分配与履约」面板，待派单 / 待服务阶段可分配飞手",
+      "无需飞手时跳过派单节点，使用「待交付」并隐藏飞手面板"
     ],
     fields: [
-      ["订单信息快照", "下单时保存的金额、预约时间、地址、业务属性，后续修改商品不影响"],
-      ["预约时间", "用户选择的服务时间"],
-      ["在线支付 / 需要飞手", "下单时业务属性快照"],
-      ["飞手分配", "已指派飞手及其个人履约状态"]
+      ["订单状态步骤条", "按在线支付、飞手服务组合生成 4～6 个节点，高亮当前状态"],
+      ["订单信息快照", "订单号、用户、商品、金额、在线支付、飞手需求、预约需求（均为下单快照）"],
+      ["预约信息", "仅需要预约时展示；含日期、时段、联系手机号、地址、备注、备注照片（1 张）"],
+      ["待交付", "无需飞手时的履约节点，后台标记交付完成后进入待评价"],
+      ["飞手分配", "仅需要飞手时展示；已指派飞手及个人履约状态"]
     ]
   },
   training: {
@@ -329,22 +340,13 @@ const state = {
   history: [],
   dashboardMetric: "today-orders",
   userTab: "orders",
-  invoiceStatus: "待处理",
-  productCategory: "上门服务",
-  specs: [
-    { name: "标准服务", price: "899" },
-    { name: "企业增强服务", price: "1599" }
-  ],
   media: [
     { id: "v1", type: "视频", name: "平台品牌宣传视频.mp4", enabled: true },
     { id: "i1", type: "图片", name: "行业无人机解决方案.jpg", enabled: true },
     { id: "i2", type: "图片", name: "专业飞手服务.jpg", enabled: true },
     { id: "i3", type: "图片", name: "无人机培训报名.jpg", enabled: false }
   ],
-  assignedPilots: [
-    { name: "李明", area: "成都高新", device: "Mavic 3E", status: "服务中" },
-    { name: "王伟", area: "成都双流", device: "M350 RTK", status: "待服务" }
-  ],
+  assignedPilots: [],
   categories: [
     { id: "c1", name: "上门服务", description: "无人机上门清洗、测绘、巡检等现场服务", icon: "./assets/icons/category-onsite.png", productCount: 12, sort: 1, enabled: true },
     { id: "c2", name: "维修保养", description: "设备保养、故障检测与维修服务", icon: "./assets/icons/category-repair.png", productCount: 6, sort: 2, enabled: true },
@@ -353,8 +355,12 @@ const state = {
   ],
   products: [
     {
-      id: "p1", code: "SP26001", name: "高空清洗服务", category: "上门服务", specCount: 2,
-      attrs: "预约 / 在线支付 / 需要飞手", status: "已上架", orderCount: 5,
+      id: "p1", code: "SP26001", name: "高空清洗服务", category: "上门服务", status: "已上架", orderCount: 5,
+      properties: { needAppointment: true, onlinePay: true, needPilot: true },
+      specs: [
+        { name: "标准服务", price: "899" },
+        { name: "企业增强服务", price: "1599" }
+      ],
       images: [
         { id: "pi1", name: "清洗现场1.jpg" },
         { id: "pi2", name: "清洗现场2.jpg" },
@@ -364,45 +370,205 @@ const state = {
       displayedReviewIds: []
     },
     {
-      id: "p2", code: "SP26002", name: "无人机保养检测", category: "维修保养", specCount: 2,
-      attrs: "预约 / 在线支付 / 无需飞手", status: "已上架", orderCount: 2,
+      id: "p2", code: "SP26002", name: "无人机保养检测", category: "维修保养", status: "已上架", orderCount: 2,
+      properties: { needAppointment: true, onlinePay: true, needPilot: false },
+      specs: [
+        { name: "基础保养", price: "899" },
+        { name: "深度检测", price: "1299" }
+      ],
       images: [{ id: "pi4", name: "保养检测1.jpg" }],
       intro: "<p>提供无人机全机保养与性能检测服务，含硬件检查、固件升级建议与检测报告。</p>",
       displayedReviewIds: []
     },
     {
-      id: "p3", code: "SP26003", name: "空域代办服务", category: "代办服务", specCount: 1,
-      attrs: "预约 / 不在线支付 / 无需飞手", status: "已下架", orderCount: 0,
+      id: "p3", code: "SP26003", name: "空域代办服务", category: "代办服务", status: "已下架", orderCount: 0,
+      properties: { needAppointment: true, onlinePay: false, needPilot: false },
+      specs: [{ name: "标准代办", price: "3600" }],
       images: [],
       intro: "<p>空域申请、飞行计划报批等一站式代办，适用于企业航拍与工程测绘项目。</p>",
       displayedReviewIds: []
     }
   ],
-  editingProductId: "p1",
+  editingProductId: null,
+  newProductDraft: null,
+  editingCategoryId: null,
+  categoryIconDraft: null,
   reviewDraft: [],
   reviewDraftProductId: null,
-  reviewPage: 1,
-  reviewPageSize: 5,
-  reviewPageProductId: null,
+  listPages: {},
   productEditor: null,
   productToolbar: null,
   deletingCategoryId: null,
   deletingProductId: null,
   viewingUserId: "U20260612001",
+  viewingOrderId: "YB26061318",
+  viewingInvoiceId: "FP26061307",
+  viewingPilotAppId: "FS26061305",
   docPanelOpen: localStorage.getItem("droneAdminDocPanel") !== "0"
 };
 
 const users = [
   { id: "U20260612001", avatar: "唐", nickname: "唐先生", phone: "138****8821", gender: "男", birthday: "1990-05-18", region: "四川 · 成都", registeredAt: "2026-06-12 09:18" },
   { id: "U20260611018", avatar: "云", nickname: "云航科技", phone: "189****3016", gender: "—", birthday: "—", region: "四川 · 成都", registeredAt: "2026-06-11 15:42" },
-  { id: "U20260610009", avatar: "张", nickname: "张女士", phone: "136****1175", gender: "女", birthday: "1995-11-02", region: "四川 · 绵阳", registeredAt: "2026-06-10 11:06" }
+  { id: "U20260610009", avatar: "张", nickname: "张女士", phone: "136****1175", gender: "女", birthday: "1995-11-02", region: "四川 · 绵阳", registeredAt: "2026-06-10 11:06" },
+  { id: "U20260609005", avatar: "李", nickname: "李先生", phone: "137****5520", gender: "男", birthday: "1988-03-21", region: "四川 · 德阳", registeredAt: "2026-06-09 08:44" },
+  { id: "U20260608003", avatar: "王", nickname: "王女士", phone: "135****9081", gender: "女", birthday: "1992-07-09", region: "四川 · 成都", registeredAt: "2026-06-08 19:12" },
+  { id: "U20260607007", avatar: "林", nickname: "林先生", phone: "133****6618", gender: "男", birthday: "1985-12-30", region: "四川 · 眉山", registeredAt: "2026-06-07 13:27" }
 ];
 
-const orders = [
-  ["YB26061326", "林先生", "高空清洗服务", "¥1,599", "需要", "待派单"],
-  ["YB26061318", "华景物业", "园区航拍测绘", "¥3,600", "需要", "待派单"],
-  ["YB26061309", "赵女士", "无人机保养检测", "¥899", "不需要", "待服务"],
-  ["YB26060803", "唐先生", "空域代办服务", "线下报价", "不需要", "已完成"]
+const orderRecords = [
+  {
+    id: "YB26061326", user: "林先生", service: "高空清洗服务", amount: "¥1,599", needPilot: true, needAppointment: true,
+    status: "待派单", onlinePay: true, assignedPilots: [],
+    appointment: {
+      date: "2026-06-14", slot: "09:00-11:00", phone: "139****5528",
+      address: "成都市武侯区某园区 3 号楼",
+      remark: "重点清洗北侧玻璃幕墙，现场有停车位。",
+      remarkPhoto: { name: "北侧外立面.jpg" }
+    }
+  },
+  {
+    id: "YB26061318", user: "华景物业", service: "园区航拍测绘", amount: "¥3,600", needPilot: true, needAppointment: true,
+    status: "待派单", onlinePay: true, assignedPilots: [],
+    appointment: {
+      date: "2026-06-15", slot: "14:00-16:00", phone: "138****6626",
+      address: "成都市高新区天府软件园",
+      remark: "需避开午间员工休息时间，从东门进入。",
+      remarkPhoto: { name: "东门入口.jpg" }
+    }
+  },
+  {
+    id: "YB26061309", user: "赵女士", service: "无人机保养检测", amount: "¥899", needPilot: false, needAppointment: true,
+    status: "待交付", onlinePay: true, assignedPilots: [],
+    appointment: {
+      date: "2026-06-16", slot: "10:00-11:30", phone: "136****1175",
+      address: "成都市双流区某维修点",
+      remark: "", remarkPhoto: null
+    }
+  },
+  {
+    id: "YB26061402", user: "李先生", service: "园区航拍测绘", amount: "¥2,800", needPilot: true, needAppointment: true,
+    status: "待付款", onlinePay: true, assignedPilots: [],
+    appointment: {
+      date: "2026-06-17", slot: "09:00-11:00", phone: "137****5520",
+      address: "成都市武侯区某园区",
+      remark: "需航拍正射影像。",
+      remarkPhoto: null
+    }
+  },
+  {
+    id: "YB26061401", user: "成都建工", service: "高空清洗服务", amount: "线下报价", needPilot: true, needAppointment: true,
+    status: "待派单", onlinePay: false, assignedPilots: [],
+    appointment: {
+      date: "2026-06-18", slot: "14:00-16:00", phone: "028-55****90",
+      address: "成都市天府新区某工地",
+      remark: "需提前联系现场负责人。",
+      remarkPhoto: { name: "工地入口.jpg" }
+    }
+  },
+  {
+    id: "YB26060803", user: "唐先生", service: "空域代办服务", amount: "线下报价", needPilot: false, needAppointment: false,
+    status: "已完成", onlinePay: false, assignedPilots: []
+  },
+  {
+    id: "YB26060711", user: "云航科技", service: "园区巡检服务", amount: "¥6,400", needPilot: true, needAppointment: true,
+    status: "待评价", onlinePay: true,
+    assignedPilots: [{ name: "王伟", area: "成都双流", device: "M350 RTK", status: "已完成" }],
+    appointment: {
+      date: "2026-06-07", slot: "11:00-13:00", phone: "189****3016",
+      address: "成都市天府新区科创园",
+      remark: "巡检完成后需提交 PDF 报告。",
+      remarkPhoto: { name: "巡检范围.jpg" }
+    }
+  },
+  {
+    id: "YB26060605", user: "张女士", service: "高空清洗服务", amount: "¥899", needPilot: true, needAppointment: true,
+    status: "已完成", onlinePay: true, assignedPilots: [],
+    appointment: {
+      date: "2026-06-06", slot: "09:30-11:30", phone: "136****1175",
+      address: "绵阳市科创园 A 区",
+      remark: "已完成服务，客户无异议。",
+      remarkPhoto: null
+    }
+  }
+];
+
+const invoiceRecords = [
+  {
+    id: "FP26061307", user: "云航科技", title: "四川云航科技有限公司", orderCount: 3, amount: "¥18,600",
+    appliedAt: "2026-06-13 16:08", status: "待处理", taxNo: "91510100MA****8K", email: "finance@example.com",
+    type: "增值税普通发票"
+  },
+  {
+    id: "FP26061303", user: "唐先生", title: "个人", orderCount: 1, amount: "¥1,599",
+    appliedAt: "2026-06-13 10:21", status: "待处理", taxNo: "—", email: "tang@example.com",
+    type: "增值税普通发票"
+  },
+  {
+    id: "FP26061002", user: "张女士", title: "个人", orderCount: 2, amount: "¥2,498",
+    appliedAt: "2026-06-10 11:06", status: "已开票", taxNo: "—", email: "zhang@example.com",
+    type: "增值税普通发票"
+  },
+  {
+    id: "FP26060901", user: "华景物业", title: "华景物业有限公司", orderCount: 1, amount: "¥3,600",
+    appliedAt: "2026-06-09 14:22", status: "待上传", taxNo: "91510100MB****2X", email: "ap@example.com",
+    type: "增值税普通发票"
+  },
+  {
+    id: "FP26060804", user: "林先生", title: "个人", orderCount: 1, amount: "¥1,599",
+    appliedAt: "2026-06-08 09:15", status: "已驳回", taxNo: "—", email: "lin@example.com",
+    type: "增值税普通发票"
+  }
+];
+
+const pilotApplications = [
+  {
+    id: "FS26061305", applicant: "陈宇", phone: "138****2605", subject: "公司", company: "四川云航科技有限公司",
+    companyPhone: "028-88****26", area: "成都高新", appliedAt: "2026-06-13 15:28", status: "待审核"
+  },
+  {
+    id: "FS26061302", applicant: "刘洋", phone: "139****1102", subject: "个人", company: "—",
+    companyPhone: "—", area: "成都双流", appliedAt: "2026-06-13 10:16", status: "待审核"
+  },
+  {
+    id: "FS26061208", applicant: "李明", phone: "138****9036", subject: "公司", company: "成都低空服务有限公司",
+    companyPhone: "028-66****18", area: "成都高新", appliedAt: "2026-06-12 09:06", status: "已通过"
+  },
+  {
+    id: "FS26061103", applicant: "周航", phone: "137****7720", subject: "个人", company: "—",
+    companyPhone: "—", area: "成都武侯", appliedAt: "2026-06-11 17:40", status: "已驳回"
+  },
+  {
+    id: "FS26061001", applicant: "赵宇", phone: "136****4412", subject: "个人", company: "—",
+    companyPhone: "—", area: "成都锦江", appliedAt: "2026-06-10 08:55", status: "待审核"
+  }
+];
+
+const trainingRecords = [
+  { id: "PX26061301", contact: "陈先生", course: "CAAC 执照培训", phone: "138****6612", appliedAt: "2026-06-13 10:26", status: "待联系" },
+  { id: "PX26061216", contact: "刘女士", course: "无人机测绘实训", phone: "186****2931", appliedAt: "2026-06-12 16:02", status: "已联系" },
+  { id: "PX26061008", contact: "四川航测公司", course: "企业内训", phone: "189****8807", appliedAt: "2026-06-10 09:31", status: "已转化" },
+  { id: "PX26060904", contact: "王先生", course: "农业植保培训", phone: "135****2208", appliedAt: "2026-06-09 13:18", status: "待联系" },
+  { id: "PX26060802", contact: "李女士", course: "CAAC 执照培训", phone: "139****7711", appliedAt: "2026-06-08 15:44", status: "已关闭" },
+  { id: "PX26060706", contact: "成都建工", course: "企业内训", phone: "028-55****90", appliedAt: "2026-06-07 11:02", status: "已联系" }
+];
+
+const pilotRecords = [
+  { name: "李明", subject: "公司", company: "成都低空服务有限公司", area: "成都高新", device: "Mavic 3E", status: "服务中" },
+  { name: "王伟", subject: "个人", company: "—", area: "成都双流", device: "M350 RTK", status: "空闲" },
+  { name: "陈宇", subject: "公司", company: "四川云航科技有限公司", area: "成都高新", device: "M350 RTK", status: "空闲" },
+  { name: "周航", subject: "个人", company: "—", area: "成都武侯", device: "M350 RTK", status: "服务中" },
+  { name: "赵宇", subject: "个人", company: "—", area: "成都锦江", device: "Mavic 3E", status: "空闲" },
+  { name: "刘洋", subject: "个人", company: "—", area: "成都双流", device: "Mavic 3E", status: "空闲" }
+];
+
+const taskRecords = [
+  { id: "RW26061301", title: "成都园区航拍需求", date: "2026-06-18", area: "成都高新", status: "征集中", interest: 6 },
+  { id: "RW26061003", title: "农田植保飞防协作", date: "2026-06-20", area: "眉山", status: "征集中", interest: 12 },
+  { id: "RW26060508", title: "活动现场航拍", date: "2026-06-08", area: "成都锦江", status: "已关闭", interest: 4 },
+  { id: "RW26060402", title: "桥梁巡检协助", date: "2026-06-22", area: "成都双流", status: "征集中", interest: 8 },
+  { id: "RW26060305", title: "电力线路初勘", date: "2026-06-25", area: "德阳", status: "征集中", interest: 5 },
+  { id: "RW26060201", title: "景区宣传拍摄", date: "2026-06-05", area: "乐山", status: "已关闭", interest: 3 }
 ];
 
 const productReviews = [
@@ -418,6 +584,130 @@ const productReviews = [
   { id: "rv5", productId: "p2", orderNo: "YB26061002", user: "王伟", rating: 4, content: "检测速度快，师傅讲解耐心。", time: "2026-06-10 14:18" },
   { id: "rv6", productId: "p3", orderNo: "YB26060108", user: "林先生", rating: 5, content: "空域代办效率很高，全程省心。", time: "2026-06-02 16:18" }
 ];
+
+function formatProductAttrs(product) {
+  const props = product.properties || {};
+  const parts = [];
+  if (props.needAppointment) parts.push("预约");
+  if (props.onlinePay) parts.push("在线支付");
+  else parts.push("不在线支付");
+  if (props.needPilot) parts.push("需要飞手");
+  else parts.push("无需飞手");
+  return parts.join(" / ");
+}
+
+function ensureProductShape(product) {
+  if (!product.properties) product.properties = { needAppointment: true, onlinePay: true, needPilot: false };
+  if (!product.specs) product.specs = [{ name: "标准服务", price: "0" }];
+  if (!product.images) product.images = [];
+  if (!product.displayedReviewIds) product.displayedReviewIds = [];
+  return product;
+}
+
+function createEmptyProduct() {
+  const defaultCategory = state.categories.find(item => item.enabled)?.name || "上门服务";
+  return ensureProductShape({
+    id: null,
+    code: "",
+    name: "",
+    category: defaultCategory,
+    status: "已下架",
+    orderCount: 0,
+    properties: { needAppointment: true, onlinePay: true, needPilot: false },
+    specs: [{ name: "标准服务", price: "0" }],
+    images: [],
+    intro: "<p></p>",
+    displayedReviewIds: []
+  });
+}
+
+function isCreatingProduct() {
+  return !state.editingProductId;
+}
+
+function activeProduct() {
+  if (state.editingProductId) {
+    const product = state.products.find(item => item.id === state.editingProductId);
+    return ensureProductShape(product || state.products[0]);
+  }
+  if (!state.newProductDraft) state.newProductDraft = createEmptyProduct();
+  return state.newProductDraft;
+}
+
+function activeOrder() {
+  return orderRecords.find(item => item.id === state.viewingOrderId) || orderRecords[0];
+}
+
+function activeInvoice() {
+  return invoiceRecords.find(item => item.id === state.viewingInvoiceId) || invoiceRecords[0];
+}
+
+function activePilotApplication() {
+  return pilotApplications.find(item => item.id === state.viewingPilotAppId) || pilotApplications[0];
+}
+
+function categoryOptions(selected = "") {
+  return state.categories
+    .filter(item => item.enabled)
+    .map(item => `<option${item.name === selected ? " selected" : ""}>${item.name}</option>`)
+    .join("");
+}
+
+function formatOrderAppointmentBrief(order) {
+  if (!order.needAppointment || !order.appointment) return "—";
+  const { date, slot } = order.appointment;
+  return [date, slot].filter(Boolean).join(" ");
+}
+
+function orderRemarkPhoto(order) {
+  const photo = order.appointment?.remarkPhoto;
+  if (!photo) return `<span class="muted">无</span>`;
+  return `<button type="button" class="order-remark-photo" data-action="preview-order-remark-photo" data-order-id="${order.id}">
+    <span class="thumb lg"><span class="thumb-img">图</span></span>
+    <span class="muted">${photo.name}</span>
+  </button>`;
+}
+
+function orderAppointmentPanel(order) {
+  if (!order.needAppointment) return "";
+  const appt = order.appointment || {};
+  return panel("预约信息", detailGrid([
+    ["预约日期", appt.date || "—"],
+    ["预约时段", appt.slot || "—"],
+    ["联系手机号", appt.phone || "—"],
+    ["预约地址", appt.address || "—", true],
+    ["信息备注", `<span class="order-remark-text">${appt.remark || "—"}</span>`, true],
+    ["备注照片", orderRemarkPhoto(order), true]
+  ]));
+}
+
+function getOrderFlow(order) {
+  const steps = ["订单生成"];
+  if (order.onlinePay) steps.push("待付款");
+  if (order.needPilot) steps.push("待派单", "待服务");
+  else steps.push("待交付");
+  steps.push("待评价", "已完成");
+  return steps;
+}
+
+function orderFlowSummary(order) {
+  return getOrderFlow(order).join(" → ");
+}
+
+function orderStatusCell(order) {
+  return `<span title="本单流转：${orderFlowSummary(order)}">${tag(order.status)}</span>`;
+}
+
+function orderSteps(order) {
+  const flow = getOrderFlow(order);
+  const current = Math.max(0, flow.indexOf(order.status));
+  return flow.map((label, index) => {
+    let cls = "step";
+    if (index < current) cls += " done";
+    else if (index === current) cls += " active";
+    return `<div class="${cls}">${label}</div>`;
+  }).join("");
+}
 
 function logo(size = "") {
   return `<span class="logo ${size}">
@@ -464,7 +754,7 @@ function panel(title, body, actions = "") {
 }
 
 function detailGrid(items) {
-  return `<dl class="detail-grid">${items.map(([key, value]) => `<div class="detail-item"><dt>${key}</dt><dd>${value}</dd></div>`).join("")}</dl>`;
+  return `<dl class="detail-grid">${items.map(([key, value, wide]) => `<div class="detail-item${wide ? " span-2" : ""}"><dt>${key}</dt><dd>${value}</dd></div>`).join("")}</dl>`;
 }
 
 function formGrid(fields) {
@@ -537,31 +827,42 @@ function topbar() {
 }
 
 function dashboardPage() {
+  const todayOrderRows = orderRecords.map(item => [
+    item.id, item.user, item.service, item.amount, item.needPilot ? "需要" : "不需要",
+    tag(item.status), opRoute("查看详情", "order-detail", "", `data-order-id="${item.id}"`)
+  ]);
+  const pendingOrderRows = orderRecords.filter(item => item.status === "待派单").map((item, index) => [
+    item.id, item.user, item.service, formatOrderAppointmentBrief(item), index ? "56min" : "2h 18min",
+    opRoute("去派单", "order-detail", "", `data-order-id="${item.id}"`)
+  ]);
+  const pilotAppRows = pilotApplications.filter(item => item.status === "待审核").map(item => [
+    item.id, item.applicant, item.subject, item.company, item.appliedAt,
+    opRoute("去审核", "pilot-review", "", `data-pilot-app-id="${item.id}"`)
+  ]);
+  const invoiceRows = invoiceRecords.filter(item => item.status === "待处理").map(item => [
+    item.id, item.user, item.title, `${item.orderCount} 个`, item.amount,
+    opRoute("去处理", "invoice-detail", "", `data-invoice-id="${item.id}"`)
+  ]);
   const content = {
-    "today-orders": panel("今日新增订单明细", table(
+    "today-orders": panel("今日新增订单明细", paginatedTable(
+      "dashboard-today-orders",
       ["订单号","用户","商品/服务","金额","需要飞手","状态","操作"],
-      orders.slice(0, 3).map(row => [...row.slice(0, 5), tag(row[5]), opRoute("查看详情", "order-detail")])
+      todayOrderRows
     )),
-    "pending-orders": panel("待派单订单明细", table(
+    "pending-orders": panel("待派单订单明细", paginatedTable(
+      "dashboard-pending-orders",
       ["订单号","用户","商品/服务","预约时间","等待时长","操作"],
-      [
-        ["YB26061201","唐先生","高空清洗服务","2026-06-14 09:00","2h 18min",opRoute("去派单","order-detail")],
-        ["YB26061318","华景物业","园区航拍测绘","2026-06-15 14:00","56min",opRoute("去派单","order-detail")]
-      ]
+      pendingOrderRows
     )),
-    "pilot-applications": panel("待审核飞手明细", table(
+    "pilot-applications": panel("待审核飞手明细", paginatedTable(
+      "dashboard-pilot-applications",
       ["申请编号","申请人","所属主体","公司","申请时间","操作"],
-      [
-        ["FS26061305","陈宇","公司","四川云航科技有限公司","2026-06-13 15:28",opRoute("去审核","pilot-review")],
-        ["FS26061302","刘洋","个人","—","2026-06-13 10:16",opRoute("去审核","pilot-review")]
-      ]
+      pilotAppRows
     )),
-    invoices: panel("待处理发票明细", table(
+    invoices: panel("待处理发票明细", paginatedTable(
+      "dashboard-invoices",
       ["申请编号","申请用户","发票抬头","关联订单","申请金额","操作"],
-      [
-        ["FP26061307","云航科技","四川云航科技有限公司","3 个","¥18,600",opRoute("去处理","invoice-detail")],
-        ["FP26061303","唐先生","个人","1 个","¥1,599",opRoute("去处理","invoice-detail")]
-      ]
+      invoiceRows
     ))
   };
   return `<div class="metrics">
@@ -605,7 +906,7 @@ function usersPage() {
   ]);
   return panel("用户列表", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="昵称 / 手机号">${button("查询","filter","primary")}
-  </div>${table(["头像","昵称","手机号","性别","生日","地区","注册时间","个人信息"], rows, "users-table")}`);
+  </div>${paginatedTable("users", ["头像","昵称","手机号","性别","生日","地区","注册时间","个人信息"], rows, "users-table")}`);
 }
 
 function userDetailPage() {
@@ -652,11 +953,7 @@ function categoriesPage() {
   ]);
   return panel("商品分类", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="分类名称">${button("查询","filter","primary")}<span class="spacer"></span>${button("新增分类","category-edit","primary")}
-  </div>${table(["排序","图标","分类名称","分类说明","商品数","状态","操作"], rows, "category-table")}`);
-}
-
-function activeProduct() {
-  return state.products.find(item => item.id === state.editingProductId) || state.products[0];
+  </div>${paginatedTable("categories", ["排序","图标","分类名称","分类说明","商品数","状态","操作"], rows, "category-table")}`);
 }
 
 function imageMissingIcon() {
@@ -742,37 +1039,62 @@ function productImagesPanel(product) {
   </div><div class="media-list">${rows || `<p class="empty">暂无轮播图，请上传</p>`}</div>`);
 }
 
+function productDraftKey(product) {
+  return product.id || "__new__";
+}
+
 function ensureReviewDraft(product) {
-  if (state.reviewDraftProductId !== product.id) {
+  const key = productDraftKey(product);
+  if (state.reviewDraftProductId !== key) {
     state.reviewDraft = [...(product.displayedReviewIds || [])];
-    state.reviewDraftProductId = product.id;
+    state.reviewDraftProductId = key;
   }
   return state.reviewDraft;
 }
 
-function ensureReviewPage(product, total) {
-  if (state.reviewPageProductId !== product.id) {
-    state.reviewPage = 1;
-    state.reviewPageProductId = product.id;
-  }
-  const totalPages = Math.max(1, Math.ceil(total / state.reviewPageSize));
-  if (state.reviewPage > totalPages) state.reviewPage = totalPages;
-  return state.reviewPage;
+function getListPage(key) {
+  if (!state.listPages[key]) state.listPages[key] = { page: 1, pageSize: 5 };
+  return state.listPages[key];
 }
 
-function listPagination({ total, page, pageSize, prefix }) {
+function paginateItems(items, key) {
+  const config = getListPage(key);
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / config.pageSize));
+  if (config.page > totalPages) config.page = totalPages;
+  const start = (config.page - 1) * config.pageSize;
+  return {
+    items: items.slice(start, start + config.pageSize),
+    total,
+    page: config.page,
+    pageSize: config.pageSize
+  };
+}
+
+function listPagination({ total, page, pageSize, key }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return `<div class="list-pagination">
     <span class="list-pagination-total">总数：<strong>${total}</strong></span>
     <div class="list-pagination-controls">
-      ${button("‹", `${prefix}-prev`, "small", page <= 1 ? "disabled" : "")}
+      ${button("‹", "list-page-prev", "small", `data-list-key="${key}"${page <= 1 ? " disabled" : ""}`)}
       <span class="list-pagination-current">${page}</span>
-      ${button("›", `${prefix}-next`, "small", page >= totalPages ? "disabled" : "")}
+      ${button("›", "list-page-next", "small", `data-list-key="${key}"${page >= totalPages ? " disabled" : ""}`)}
     </div>
-    <label class="list-pagination-size"><select data-action="${prefix}-size">
+    <label class="list-pagination-size"><select data-action="list-page-size" data-list-key="${key}">
       ${[5, 10, 20].map(size => `<option value="${size}"${size === pageSize ? " selected" : ""}>${size}</option>`).join("")}
     </select> / 页</label>
   </div>`;
+}
+
+function paginatedTable(key, headers, rows, cls = "") {
+  const { items, total, page, pageSize } = paginateItems(rows, key);
+  const tableHtml = total ? table(headers, items, cls) : `<p class="empty">无数据</p>`;
+  const pagination = total ? listPagination({ total, page, pageSize, key }) : "";
+  return `${tableHtml}${pagination}`;
+}
+
+function reviewListKey(product) {
+  return `reviews:${productDraftKey(product)}`;
 }
 
 function reviewDraftDirty(product) {
@@ -782,12 +1104,13 @@ function reviewDraftDirty(product) {
 }
 
 function productReviewsPanel(product) {
+  if (!product.id) {
+    return panel("评价管理", `<p class="muted" style="margin:0">评价来自该商品的已完成订单。新建商品需先保存，保存后才可选择要展示的评价。</p>
+      <p class="empty" style="margin-top:14px">暂无评价数据</p>`);
+  }
   const reviews = productReviews.filter(item => item.productId === product.id);
-  const total = reviews.length;
-  const page = ensureReviewPage(product, total);
-  const pageSize = state.reviewPageSize;
-  const start = (page - 1) * pageSize;
-  const pageReviews = reviews.slice(start, start + pageSize);
+  const listKey = reviewListKey(product);
+  const { items: pageReviews, total, page, pageSize } = paginateItems(reviews, listKey);
   const draft = new Set(ensureReviewDraft(product));
   const saved = new Set(product.displayedReviewIds || []);
   const draftCount = reviews.filter(item => draft.has(item.id)).length;
@@ -809,7 +1132,7 @@ function productReviewsPanel(product) {
     </label>`;
   }).join("");
   const dirtyTip = dirty ? `<span class="tag amber">有未保存的勾选变更</span>` : "";
-  const pagination = total ? listPagination({ total, page, pageSize, prefix: "review-page" }) : "";
+  const pagination = total ? listPagination({ total, page, pageSize, key: listKey }) : "";
   return panel("评价管理", `<p class="muted" style="margin:0 0 14px">评价均来自该商品的已完成订单。列表分页浏览，多选后点击顶部「保存商品」在小程序商品详情页生效。当前勾选 <strong>${draftCount}</strong> 条，已保存展示 <strong>${savedCount}</strong> 条。 ${dirtyTip}</p>
     <div class="review-list">${list || `<p class="empty">暂无来自订单的评价</p>`}</div>${pagination}`, actions);
 }
@@ -825,102 +1148,121 @@ function productsPage() {
     item.code,
     item.name,
     item.category,
-    item.specCount,
-    item.attrs,
+    item.specs.length,
+    formatProductAttrs(item),
     tag(item.status),
     productActions(item)
   ]);
   return panel("商品列表", `<div class="toolbar" style="margin-bottom:14px">
-    <input placeholder="商品名称 / 编号"><select><option>全部分类</option><option>上门服务</option><option>维修保养</option></select>
+    <input placeholder="商品名称 / 编号"><select><option>全部分类</option>${state.categories.map(item => `<option>${item.name}</option>`).join("")}</select>
     <select><option>全部状态</option><option>已上架</option><option>已下架</option></select>${button("查询","filter","primary")}
-    <span class="spacer"></span>${routeButton("创建商品","product-edit","primary")}
-  </div>${table(["商品图","商品编号","商品名称","分类","规格数","业务属性","状态","操作"], rows, "products-table")}`);
+    <span class="spacer"></span>${button("创建商品","create-product","primary")}
+  </div>${paginatedTable("products", ["商品图","商品编号","商品名称","分类","规格数","业务属性","状态","操作"], rows, "products-table")}`);
 }
 
-function propertyRow(label, checked = true) {
-  return `<label class="property-row"><span>${label}</span><input type="checkbox"${checked ? " checked" : ""}></label>`;
+function propertyRow(label, key, product) {
+  const checked = product.properties?.[key];
+  return `<label class="property-row"><span>${label}</span><input type="checkbox" data-action="toggle-product-property" data-key="${key}"${checked ? " checked" : ""}></label>`;
 }
 
 function productEditPage() {
   const product = activeProduct();
-  if (!product.images) product.images = [];
-  if (!product.displayedReviewIds) product.displayedReviewIds = [];
-  const specs = state.specs.map((spec, index) => [
-    `<input value="${spec.name}">`, `<input value="${spec.price}">`,
+  const creating = isCreatingProduct();
+  const specs = product.specs.map((spec, index) => [
+    `<input data-field="spec-name" data-index="${index}" value="${spec.name}">`,
+    `<input data-field="spec-price" data-index="${index}" value="${spec.price}">`,
     opButton("删除","remove-spec","danger",`data-index="${index}"`)
   ]);
-  return panel("基础信息", formGrid([
-    { label: "商品名称", html: `<input value="${product.name}">` },
-    { label: "商品分类", html: `<select data-action="product-category"><option${product.category === "上门服务" ? " selected" : ""}>上门服务</option><option${product.category === "维修保养" ? " selected" : ""}>维修保养</option><option${product.category === "代办服务" ? " selected" : ""}>代办服务</option></select>` }
+  return panel(creating ? "创建商品" : "编辑商品", formGrid([
+    { label: "商品名称", html: `<input data-field="product-name" value="${product.name}" placeholder="请输入商品名称">` },
+    { label: "商品分类", html: `<select data-field="product-category">${categoryOptions(product.category)}</select>` },
+    { label: "上架状态", html: `<select data-field="product-status"><option${product.status === "已上架" ? " selected" : ""}>已上架</option><option${product.status === "已下架" ? " selected" : ""}>已下架</option></select>` }
   ]), `${routeButton("返回商品列表","products","")}${button("保存商品","save-product","primary")}`)
   + productImagesPanel(product)
   + panel("商品介绍", richEditorContainer())
   + productReviewsPanel(product)
   + panel("多规格配置", `${table(["规格名称","价格（元）","操作"], specs)}<div style="margin-top:12px">${button("添加规格","add-spec")}</div>`)
-  + panel("业务属性", `<div class="check-list">${propertyRow("是否需要预约","需要")}${propertyRow("是否在线支付","需要")}${propertyRow("是否需要飞手服务","需要")}</div>
+  + panel("业务属性", `<div class="check-list">${propertyRow("是否需要预约","needAppointment",product)}${propertyRow("是否在线支付","onlinePay",product)}${propertyRow("是否需要飞手服务","needPilot",product)}</div>
     <p class="muted" style="margin:12px 0 0">业务属性与商品绑定。订单生成时保存最终属性快照，后续修改商品不会改变历史订单。</p>`);
 }
 
 function ordersPage() {
-  const rows = orders.map(row => [...row.slice(0,5), tag(row[5]), opRoute("查看详情","order-detail")]);
+  const rows = orderRecords.map(item => [
+    item.id, item.user, item.service, item.amount, item.needPilot ? "需要" : "不需要",
+    orderStatusCell(item), opRoute("查看详情", "order-detail", "", `data-order-id="${item.id}"`)
+  ]);
   return panel("订单列表", `<div class="toolbar" style="margin-bottom:14px">
-    <input placeholder="订单号 / 用户 / 商品"><select><option>全部状态</option><option>待付款</option><option>待派单</option><option>待服务</option><option>待评价</option><option>已完成</option></select>
+    <input placeholder="订单号 / 用户 / 商品"><select><option>全部状态</option><option>待付款</option><option>待派单</option><option>待服务</option><option>待交付</option><option>待评价</option><option>已完成</option></select>
     <select><option>是否需要飞手</option><option>需要</option><option>不需要</option></select>${button("查询","filter","primary")}
-  </div>${table(["订单号","用户","商品/服务","金额","需要飞手","状态","操作"], rows)}`);
+  </div>${paginatedTable("orders", ["订单号","用户","商品/服务","金额","需要飞手","状态","操作"], rows)}`);
 }
 
 function orderDetailPage() {
-  const pilots = table(["飞手","区域","设备","个人状态"], state.assignedPilots.map(p => [p.name,p.area,p.device,tag(p.status)]));
-  return panel("订单状态", `<div class="steps">
-    <div class="step done">订单生成</div><div class="step done">待派单</div><div class="step done">待服务</div><div class="step">全部完成</div><div class="step">待评价</div>
-  </div>`, routeButton("返回订单列表","orders",""))
+  const order = activeOrder();
+  const canAssignPilot = order.needPilot && ["待派单", "待服务"].includes(order.status);
+  const pilots = order.assignedPilots.length
+    ? table(["飞手","区域","设备","个人状态"], order.assignedPilots.map(p => [p.name, p.area, p.device, tag(p.status)]))
+    : `<p class="empty">尚未分配飞手</p>`;
+  const pilotPanel = order.needPilot
+    ? panel("飞手分配与履约", pilots, canAssignPilot ? button("分配 / 调整飞手", "assign-pilots", "primary") : "")
+    : "";
+  return panel("订单状态", `<div class="steps steps--flow">${orderSteps(order)}</div>
+    <p class="muted order-flow-summary">本单流转：${orderFlowSummary(order)}</p>`, routeButton("返回订单列表","orders",""))
   + panel("订单信息快照", detailGrid([
-    ["订单号","YB26061318"],["用户","华景物业"],["服务","园区航拍测绘"],["订单金额","¥3,600"],
-    ["预约时间","2026-06-15 14:00"],["服务地址","成都市高新区天府软件园"],
-    ["在线支付","是（下单快照）"],["需要飞手","是（下单快照）"]
+    ["订单号", order.id], ["用户", order.user], ["商品/服务", order.service], ["订单金额", order.amount],
+    ["在线支付", order.onlinePay ? "是（下单快照）" : "否（下单快照）"],
+    ["需要飞手", order.needPilot ? "是（下单快照）" : "否（下单快照）"],
+    ["需要预约", order.needAppointment ? "是（下单快照）" : "否（下单快照）"]
   ]))
-  + panel("飞手分配与履约", pilots, button("分配 / 调整飞手","assign-pilots","primary"));
+  + orderAppointmentPanel(order)
+  + pilotPanel;
 }
 
 function trainingPage() {
+  const rows = trainingRecords.map(item => [
+    item.id, item.contact, item.course, item.phone, item.appliedAt, tag(item.status),
+    opButton("查看 / 跟进", "training-follow")
+  ]);
   return panel("报名线索", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="联系人 / 手机号 / 课程"><select><option>全部状态</option><option>待联系</option><option>已联系</option><option>已转化</option><option>已关闭</option></select>${button("查询","filter","primary")}
-  </div>${table(["线索编号","联系人","课程意向","手机号","报名时间","状态","操作"], [
-    ["PX26061301","陈先生","CAAC 执照培训","138****6612","2026-06-13 10:26",tag("待联系"),opButton("查看 / 跟进","training-follow")],
-    ["PX26061216","刘女士","无人机测绘实训","186****2931","2026-06-12 16:02",tag("已联系"),opButton("查看 / 跟进","training-follow")],
-    ["PX26061008","四川航测公司","企业内训","189****8807","2026-06-10 09:31",tag("已转化"),opButton("查看 / 跟进","training-follow")]
-  ])}`);
+  </div>${paginatedTable("training", ["线索编号","联系人","课程意向","手机号","报名时间","状态","操作"], rows)}`);
 }
 
 function pilotApplicationsPage() {
+  const rows = pilotApplications.map(item => [
+    item.id, item.applicant, item.subject, item.company, item.appliedAt, tag(item.status),
+    opRoute(item.status === "待审核" ? "审核" : "查看", "pilot-review", "", `data-pilot-app-id="${item.id}"`)
+  ]);
   return panel("入驻申请", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="申请人 / 手机号 / 公司"><select><option>全部主体</option><option>个人</option><option>公司</option></select><select><option>全部状态</option><option>待审核</option><option>已通过</option><option>已驳回</option></select>${button("查询","filter","primary")}
-  </div>${table(["申请编号","申请人","主体","所属公司","申请时间","状态","操作"], [
-    ["FS26061305","陈宇","公司","四川云航科技有限公司","2026-06-13 15:28",tag("待审核"),opRoute("审核","pilot-review")],
-    ["FS26061302","刘洋","个人","—","2026-06-13 10:16",tag("待审核"),opRoute("审核","pilot-review")],
-    ["FS26061208","李明","公司","成都低空服务有限公司","2026-06-12 09:06",tag("已通过"),opRoute("查看","pilot-review")]
-  ])}`);
+  </div>${paginatedTable("pilot-applications", ["申请编号","申请人","主体","所属公司","申请时间","状态","操作"], rows)}`);
 }
 
 function pilotReviewPage() {
+  const app = activePilotApplication();
+  const readonly = app.status !== "待审核";
+  const actions = readonly
+    ? `<span class="tag green">已审核 · 只读查看</span>`
+    : `${button("驳回申请","reject-pilot","danger")}${button("审核通过","approve-pilot","primary")}`;
   return panel("申请信息", detailGrid([
-    ["申请编号","FS26061305"],["申请人","陈宇"],["联系电话","138****2605"],["所属主体","公司"],
-    ["公司名称","四川云航科技有限公司"],["公司电话","028-88****26"],["所在区域","成都高新"],["申请时间","2026-06-13 15:28"]
+    ["申请编号", app.id], ["申请人", app.applicant], ["联系电话", app.phone], ["所属主体", app.subject],
+    ["公司名称", app.company], ["公司电话", app.companyPhone], ["所在区域", app.area], ["申请时间", app.appliedAt],
+    ["当前状态", tag(app.status)]
   ]), routeButton("返回申请列表","pilot-applications",""))
   + panel("资质与设备资料", table(["资料类型","资料内容","状态"], [
     ["身份证","身份证正反面",tag("已上传")],["操作执照","CAAC 超视距驾驶员",tag("已上传")],
     ["无人机","DJI M350 RTK · SN: 3X****91",tag("已上传")]
-  ]), `${button("驳回申请","reject-pilot","danger")}${button("审核通过","approve-pilot","primary")}`);
+  ]), actions);
 }
 
 function pilotsPage() {
+  const rows = pilotRecords.map(item => [
+    item.name, item.subject, item.company, item.area, item.device, tag(item.status),
+    opRoute("查看详情", "pilot-detail")
+  ]);
   return panel("已认证飞手", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="姓名 / 手机号 / 公司"><select><option>全部主体</option><option>个人</option><option>公司</option></select><select><option>全部状态</option><option>空闲</option><option>服务中</option></select>${button("查询","filter","primary")}
-  </div>${table(["飞手","主体","所属公司","服务区域","设备","状态","操作"], [
-    ["李明","公司","成都低空服务有限公司","成都高新","Mavic 3E",tag("服务中"),opRoute("查看详情","pilot-detail")],
-    ["王伟","个人","—","成都双流","M350 RTK",tag("空闲"),opRoute("查看详情","pilot-detail")],
-    ["陈宇","公司","四川云航科技有限公司","成都高新","M350 RTK",tag("空闲"),opRoute("查看详情","pilot-detail")]
-  ])}`);
+  </div>${paginatedTable("pilots", ["飞手","主体","所属公司","服务区域","设备","状态","操作"], rows)}`);
 }
 
 function pilotDetailPage() {
@@ -929,39 +1271,41 @@ function pilotDetailPage() {
     ["服务区域","成都高新"],["主要设备","Mavic 3E"],["认证时间","2026-05-22"],["当前状态",tag("服务中")]
   ]), routeButton("返回飞手列表","pilots",""))
   + panel("分配订单及个人完成状态", table(["订单号","服务","预约时间","订单状态","个人状态"], [
-    ["YB26061318","园区航拍测绘","2026-06-15 14:00",tag("待服务"),tag("服务中")],
-    ["YB26060809","园区巡检","2026-06-09 09:00",tag("已完成"),tag("已完成")]
+    ["YB26061318","园区航拍测绘",formatOrderAppointmentBrief(orderRecords.find(item => item.id === "YB26061318")),tag("待服务"),tag("服务中")],
+    ["YB26060809","园区巡检","—",tag("已完成"),tag("已完成")]
   ]));
 }
 
 function tasksPage() {
+  const rows = taskRecords.map(item => [
+    item.id, item.title, item.date, item.area, tag(item.status), item.interest,
+    opButton("查看意愿", "task-interest")
+  ]);
   return panel("任务需求", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="需求标题"><select><option>全部状态</option><option>征集中</option><option>已关闭</option></select>${button("查询","filter","primary")}
     <span class="spacer"></span>${button("发布任务需求","publish-task","primary")}
-  </div>${table(["需求编号","需求标题","服务日期","区域","状态","意愿人数","操作"], [
-    ["RW26061301","成都园区航拍需求","2026-06-18","成都高新",tag("征集中"),"6",opButton("查看意愿","task-interest")],
-    ["RW26061003","农田植保飞防协作","2026-06-20","眉山",tag("征集中"),"12",opButton("查看意愿","task-interest")],
-    ["RW26060508","活动现场航拍","2026-06-08","成都锦江",tag("已关闭"),"4",opButton("查看意愿","task-interest")]
-  ])}<p class="muted" style="margin:14px 0 0">任务需求仅收集飞手参与意愿，不关联商品订单，也不改变商品订单状态。</p>`);
+  </div>${paginatedTable("tasks", ["需求编号","需求标题","服务日期","区域","状态","意愿人数","操作"], rows)}
+  <p class="muted" style="margin:14px 0 0">任务需求仅收集飞手参与意愿，不关联商品订单，也不改变商品订单状态。</p>`);
 }
 
 function invoicesPage() {
+  const rows = invoiceRecords.map(item => [
+    item.id, item.user, item.title, item.orderCount, item.amount, item.appliedAt, tag(item.status),
+    opRoute("查看详情", "invoice-detail", "", `data-invoice-id="${item.id}"`)
+  ]);
   return panel("发票申请", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="申请编号 / 用户 / 抬头"><select><option>全部状态</option><option>待处理</option><option>待上传</option><option>已开票</option><option>已驳回</option></select>${button("查询","filter","primary")}
-  </div>${table(["申请编号","用户","发票抬头","订单数","金额","申请时间","状态","操作"], [
-    ["FP26061307","云航科技","四川云航科技有限公司","3","¥18,600","2026-06-13 16:08",tag("待处理"),opRoute("查看详情","invoice-detail")],
-    ["FP26061303","唐先生","个人","1","¥1,599","2026-06-13 10:21",tag("待处理"),opRoute("查看详情","invoice-detail")],
-    ["FP26061002","张女士","个人","2","¥2,498","2026-06-10 11:06",tag("已开票"),opRoute("查看详情","invoice-detail")]
-  ])}`);
+  </div>${paginatedTable("invoices", ["申请编号","用户","发票抬头","订单数","金额","申请时间","状态","操作"], rows)}`);
 }
 
 function invoiceDetailPage() {
-  const actions = state.invoiceStatus === "待处理"
+  const invoice = activeInvoice();
+  const actions = invoice.status === "待处理"
     ? `${button("驳回","reject-invoice","danger")}${button("审核通过","approve-invoice","primary")}`
-    : state.invoiceStatus === "待上传" ? button("上传发票文件","upload-invoice","primary") : "";
+    : invoice.status === "待上传" ? button("上传发票文件","upload-invoice","primary") : "";
   return panel("申请信息", detailGrid([
-    ["申请编号","FP26061307"],["申请用户","云航科技"],["发票类型","增值税普通发票"],["发票抬头","四川云航科技有限公司"],
-    ["税号","91510100MA****8K"],["申请金额","¥18,600"],["接收邮箱","finance@example.com"],["当前状态",tag(state.invoiceStatus)]
+    ["申请编号", invoice.id], ["申请用户", invoice.user], ["发票类型", invoice.type], ["发票抬头", invoice.title],
+    ["税号", invoice.taxNo], ["申请金额", invoice.amount], ["接收邮箱", invoice.email], ["当前状态", tag(invoice.status)]
   ]), routeButton("返回发票列表","invoices",""))
   + panel("关联订单", table(["订单号","商品/服务","完成时间","可开票金额"], [
     ["YB26060811","园区航拍测绘","2026-06-09 18:20","¥8,600"],
@@ -1106,9 +1450,11 @@ async function handlePickCategoryIcon() {
   const files = await pickLocalFile({ accept: "image/*" });
   const file = files[0];
   if (!file) return;
+  const url = URL.createObjectURL(file);
+  state.categoryIconDraft = { url, name: file.name };
   const preview = document.querySelector(".category-icon-field .preview");
   const nameEl = document.getElementById("category-icon-name");
-  if (preview) preview.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="分类图标">`;
+  if (preview) preview.innerHTML = `<img src="${url}" alt="分类图标">`;
   if (nameEl) nameEl.textContent = file.name;
   toast(`已选择：${file.name}`);
 }
@@ -1126,9 +1472,65 @@ async function handleUploadInvoice() {
   const files = await pickLocalFile({ accept: ".pdf,.jpg,.jpeg,.png,image/*" });
   const file = files[0];
   if (!file) return;
-  state.invoiceStatus = "已开票";
+  activeInvoice().status = "已开票";
   render();
   toast(`发票已上传：${file.name}`);
+}
+
+function readProductFormFromPage() {
+  const product = activeProduct();
+  const page = document.querySelector(".page");
+  if (!page) return product;
+  product.name = page.querySelector('[data-field="product-name"]')?.value.trim() || product.name;
+  product.category = page.querySelector('[data-field="product-category"]')?.value || product.category;
+  product.status = page.querySelector('[data-field="product-status"]')?.value || product.status;
+  page.querySelectorAll('[data-field="spec-name"]').forEach(input => {
+    const index = Number(input.dataset.index);
+    if (product.specs[index]) product.specs[index].name = input.value.trim();
+  });
+  page.querySelectorAll('[data-field="spec-price"]').forEach(input => {
+    const index = Number(input.dataset.index);
+    if (product.specs[index]) product.specs[index].price = input.value.trim();
+  });
+  return product;
+}
+
+function saveCategoryFromModal() {
+  const overlay = document.getElementById("overlay");
+  const name = overlay.querySelector("#category-name")?.value.trim();
+  if (!name) {
+    toast("请填写分类名称");
+    return false;
+  }
+  const description = overlay.querySelector("#category-description")?.value.trim() || "";
+  const enabled = overlay.querySelector("#category-enabled")?.value === "启用";
+  const icon = state.categoryIconDraft?.url
+    || (state.editingCategoryId && state.categories.find(item => item.id === state.editingCategoryId)?.icon)
+    || "./assets/icons/category-onsite.png";
+
+  if (state.editingCategoryId) {
+    const item = state.categories.find(entry => entry.id === state.editingCategoryId);
+    if (item) {
+      item.name = name;
+      item.description = description;
+      item.enabled = enabled;
+      item.icon = icon;
+    }
+  } else {
+    const maxSort = Math.max(0, ...state.categories.map(item => item.sort));
+    state.categories.push({
+      id: `c${Date.now()}`,
+      name,
+      description,
+      icon,
+      productCount: 0,
+      sort: maxSort + 1,
+      enabled
+    });
+  }
+  state.editingCategoryId = null;
+  state.categoryIconDraft = null;
+  return true;
 }
 
 function modal(title, body, footer = "", wide = false) {
@@ -1149,7 +1551,19 @@ document.addEventListener("click", event => {
   const route = event.target.closest("[data-route]");
   if (route) {
     if (route.dataset.userId) state.viewingUserId = route.dataset.userId;
-    if (route.dataset.productId) state.editingProductId = route.dataset.productId;
+    if (route.dataset.route === "product-edit") {
+      if (route.dataset.productId) {
+        state.editingProductId = route.dataset.productId;
+        state.newProductDraft = null;
+      } else {
+        state.editingProductId = null;
+        state.newProductDraft = null;
+        state.reviewDraftProductId = null;
+      }
+    }
+    if (route.dataset.orderId) state.viewingOrderId = route.dataset.orderId;
+    if (route.dataset.invoiceId) state.viewingInvoiceId = route.dataset.invoiceId;
+    if (route.dataset.pilotAppId) state.viewingPilotAppId = route.dataset.pilotAppId;
     navigate(route.dataset.route);
     return;
   }
@@ -1176,7 +1590,14 @@ document.addEventListener("click", event => {
   } else if (action === "close-modal") {
     state.deletingCategoryId = null;
     state.deletingProductId = null;
+    state.editingCategoryId = null;
+    state.categoryIconDraft = null;
     closeModal();
+  } else if (action === "create-product") {
+    state.editingProductId = null;
+    state.newProductDraft = null;
+    state.reviewDraftProductId = null;
+    navigate("product-edit");
   } else if (action === "add-video") {
     handleAddVideo();
   } else if (action === "add-image") {
@@ -1196,16 +1617,25 @@ document.addEventListener("click", event => {
     state.userTab = target.dataset.tab;
     render();
   } else if (action === "category-edit") {
-    const item = state.categories.find(x => x.id === target.dataset.id) || { name: "", description: "", icon: "./assets/icons/category-onsite.png", sort: state.categories.length + 1, enabled: true };
-    const iconPreview = isCategoryImage(item.icon)
-      ? `<img src="${item.icon}" alt="${item.name || "分类图标"}">`
-      : `<span class="category-icon-text">${item.icon || "分类"}</span>`;
+    const item = state.categories.find(x => x.id === target.dataset.id);
+    state.editingCategoryId = item?.id || null;
+    state.categoryIconDraft = null;
+    const draft = item || { name: "", description: "", icon: "./assets/icons/category-onsite.png", sort: state.categories.length + 1, enabled: true };
+    const iconPreview = isCategoryImage(draft.icon)
+      ? `<img src="${draft.icon}" alt="${draft.name || "分类图标"}">`
+      : `<span class="category-icon-text">${draft.icon || "分类"}</span>`;
     modal("商品分类", formGrid([
-      { label: "分类名称", html: `<input value="${item.name}" placeholder="请输入分类名称">` },
-      { label: "分类状态", html: `<select><option ${item.enabled ? "selected" : ""}>启用</option><option ${item.enabled ? "" : "selected"}>停用</option></select>` },
-      { label: "分类说明", wide: true, html: `<textarea placeholder="请输入分类说明，用于小程序分类页展示">${item.description || ""}</textarea>` },
-      { label: "分类图标", wide: true, html: `<div class="category-icon-field"><span class="category-icon preview">${iconPreview}</span>${button("选择图片", "pick-category-icon")}<span class="muted category-icon-name" id="category-icon-name">未选择</span><span class="muted">建议 128×128 或更大，用于小程序分类入口展示</span></div>` }
-    ]), `${button("取消","close-modal")}${button("保存分类","save-modal","primary")}`, true);
+      { label: "分类名称", html: `<input id="category-name" value="${draft.name}" placeholder="请输入分类名称">` },
+      { label: "分类状态", html: `<select id="category-enabled"><option${draft.enabled ? " selected" : ""}>启用</option><option${draft.enabled ? "" : " selected"}>停用</option></select>` },
+      { label: "分类说明", wide: true, html: `<textarea id="category-description" placeholder="请输入分类说明，用于小程序分类页展示">${draft.description || ""}</textarea>` },
+      { label: "分类图标", wide: true, html: `<div class="category-icon-field"><span class="category-icon preview">${iconPreview}</span>${button("选择图片", "pick-category-icon")}<span class="muted category-icon-name" id="category-icon-name">${item ? "保留当前图标或重新选择" : "未选择"}</span><span class="muted">建议 128×128 或更大，用于小程序分类入口展示</span></div>` }
+    ]), `${button("取消","close-modal")}${button("保存分类","save-category","primary")}`, true);
+  } else if (action === "save-category") {
+    if (saveCategoryFromModal()) {
+      closeModal();
+      render();
+      toast("分类已保存");
+    }
   } else if (action === "move-category") {
     const sorted = [...state.categories].sort((a, b) => a.sort - b.sort);
     const index = sorted.findIndex(x => x.id === target.dataset.id);
@@ -1250,16 +1680,31 @@ document.addEventListener("click", event => {
     render();
     toast("商品已删除");
   } else if (action === "add-spec") {
-    state.specs.push({ name: "新规格", price: "0" });
+    activeProduct().specs.push({ name: "新规格", price: "0" });
     render();
   } else if (action === "remove-spec") {
-    state.specs.splice(Number(target.dataset.index), 1);
+    activeProduct().specs.splice(Number(target.dataset.index), 1);
     render();
   } else if (action === "save-product") {
-    if (state.productEditor) activeProduct().intro = state.productEditor.getHtml();
-    const product = activeProduct();
+    const product = readProductFormFromPage();
+    if (state.productEditor) product.intro = state.productEditor.getHtml();
+    if (!product.name.trim()) {
+      toast("请填写商品名称");
+      return;
+    }
     product.displayedReviewIds = [...ensureReviewDraft(product)];
-    toast("商品已保存（模拟）");
+    if (isCreatingProduct()) {
+      const id = `p${Date.now()}`;
+      product.id = id;
+      product.code = `SP${String(state.products.length + 1).padStart(5, "0")}`;
+      state.products.push(product);
+      state.editingProductId = id;
+      state.newProductDraft = null;
+      toast("商品已创建并保存");
+    } else {
+      toast("商品已保存");
+    }
+    render();
   } else if (action === "add-product-image") {
     handleAddProductImage();
   } else if (action === "delete-product-image") {
@@ -1279,9 +1724,7 @@ document.addEventListener("click", event => {
   } else if (action === "select-all-reviews") {
     const product = activeProduct();
     const reviews = productReviews.filter(item => item.productId === product.id);
-    const page = ensureReviewPage(product, reviews.length);
-    const start = (page - 1) * state.reviewPageSize;
-    const pageReviews = reviews.slice(start, start + state.reviewPageSize);
+    const { items: pageReviews } = paginateItems(reviews, reviewListKey(product));
     const draft = new Set(ensureReviewDraft(product));
     const allPageSelected = pageReviews.length > 0 && pageReviews.every(item => draft.has(item.id));
     pageReviews.forEach(item => {
@@ -1290,19 +1733,16 @@ document.addEventListener("click", event => {
     });
     state.reviewDraft = [...draft];
     render();
-  } else if (action === "review-page-prev") {
-    if (state.reviewPage > 1) {
-      state.reviewPage--;
+  } else if (action === "list-page-prev") {
+    const pg = getListPage(target.dataset.listKey);
+    if (pg.page > 1) {
+      pg.page--;
       render();
     }
-  } else if (action === "review-page-next") {
-    const product = activeProduct();
-    const total = productReviews.filter(item => item.productId === product.id).length;
-    const totalPages = Math.ceil(total / state.reviewPageSize);
-    if (state.reviewPage < totalPages) {
-      state.reviewPage++;
-      render();
-    }
+  } else if (action === "list-page-next") {
+    const pg = getListPage(target.dataset.listKey);
+    pg.page++;
+    render();
   } else if (action === "assign-pilots") {
     const pilots = [
       ["李明","成都高新 · Mavic 3E","空闲",true],["王伟","成都双流 · M350 RTK","空闲",true],
@@ -1313,14 +1753,17 @@ document.addEventListener("click", event => {
         <span><strong>${p[0]}</strong><br><span class="muted">${p[1]}</span></span>${tag(p[2])}</label>`).join("")}`,
       `${button("取消","close-modal")}${button("确认分配","confirm-assignment","primary")}`, true);
   } else if (action === "confirm-assignment") {
+    const order = activeOrder();
+    if (!order.needPilot) return;
     const selected = [...document.querySelectorAll("input[name='pilot']:checked")].map(x => x.value);
     if (!selected.length) {
       toast("请至少选择一名飞手");
       return;
     }
-    state.assignedPilots = selected.map((name, index) => ({
+    order.assignedPilots = selected.map((name, index) => ({
       name, area: index ? "成都双流" : "成都高新", device: index ? "M350 RTK" : "Mavic 3E", status: "待服务"
     }));
+    if (order.status === "待派单") order.status = "待服务";
     closeModal();
     render();
     toast(`已分配 ${selected.length} 名飞手，订单进入待服务`);
@@ -1334,10 +1777,17 @@ document.addEventListener("click", event => {
     modal("确认审核通过", `<p>确认该申请资料完整并通过飞手入驻审核？</p>`,
       `${button("取消","close-modal")}${button("确认通过","confirm-pilot","primary")}`);
   } else if (action === "reject-pilot") {
-    modal("驳回申请", `<div class="form-field"><label>驳回原因</label><textarea placeholder="请填写驳回原因"></textarea></div>`,
-      `${button("取消","close-modal")}${button("确认驳回","save-modal","danger")}`);
-  } else if (action === "confirm-pilot") {
+    modal("驳回申请", `<div class="form-field"><label>驳回原因</label><textarea id="pilot-reject-reason" placeholder="请填写驳回原因"></textarea></div>`,
+      `${button("取消","close-modal")}${button("确认驳回","confirm-reject-pilot","danger")}`);
+  } else if (action === "confirm-reject-pilot") {
+    activePilotApplication().status = "已驳回";
     closeModal();
+    render();
+    toast("飞手申请已驳回");
+  } else if (action === "confirm-pilot") {
+    activePilotApplication().status = "已通过";
+    closeModal();
+    render();
     toast("飞手申请已审核通过");
   } else if (action === "publish-task") {
     modal("发布独立任务需求", formGrid([
@@ -1353,14 +1803,14 @@ document.addEventListener("click", event => {
       ["赵宇","个人","成都武侯","Mavic 3E","2026-06-13 13:06"]
     ]), button("关闭","close-modal"));
   } else if (action === "approve-invoice") {
-    state.invoiceStatus = "待上传";
+    activeInvoice().status = "待上传";
     render();
     toast("审核通过，请上传发票文件");
   } else if (action === "reject-invoice") {
-    modal("驳回发票申请", `<div class="form-field"><label>驳回原因</label><textarea placeholder="请填写驳回原因"></textarea></div>`,
+    modal("驳回发票申请", `<div class="form-field"><label>驳回原因</label><textarea id="invoice-reject-reason" placeholder="请填写驳回原因"></textarea></div>`,
       `${button("取消","close-modal")}${button("确认驳回","confirm-invoice-reject","danger")}`);
   } else if (action === "confirm-invoice-reject") {
-    state.invoiceStatus = "已驳回";
+    activeInvoice().status = "已驳回";
     closeModal();
     render();
     toast("发票申请已驳回");
@@ -1370,6 +1820,14 @@ document.addEventListener("click", event => {
     handlePickAboutLogo();
   } else if (action === "upload-invoice") {
     handleUploadInvoice();
+  } else if (action === "preview-order-remark-photo") {
+    const order = orderRecords.find(item => item.id === target.dataset.orderId) || activeOrder();
+    const photo = order.appointment?.remarkPhoto;
+    if (!photo) return;
+    modal("备注照片", `<div class="order-remark-preview">
+      <span class="thumb order-remark-preview-img"><span class="thumb-img">备注图</span></span>
+      <p class="muted">${photo.name}</p>
+    </div>`, button("关闭", "close-modal"));
   } else if (action === "preview-about") {
     modal("小程序展示预览", `<div class="preview-card"><h2>四川云北无人机科技有限公司</h2>
       <p>专注于无人机行业服务、飞手协作、技术培训与企业解决方案。</p>
@@ -1383,7 +1841,26 @@ document.addEventListener("click", event => {
 });
 
 document.addEventListener("change", event => {
-  if (event.target.dataset.action === "toggle-product-review") {
+  const action = event.target.dataset.action;
+
+  if (action === "toggle-media") {
+    const item = state.media.find(entry => entry.id === event.target.dataset.id);
+    if (item) {
+      item.enabled = event.target.checked;
+      render();
+      toast(item.enabled ? "已启用该轮播内容" : "已停用该轮播内容");
+    }
+    return;
+  }
+
+  if (action === "toggle-product-property") {
+    const product = activeProduct();
+    product.properties[event.target.dataset.key] = event.target.checked;
+    render();
+    return;
+  }
+
+  if (action === "toggle-product-review") {
     const draft = new Set(ensureReviewDraft(activeProduct()));
     if (event.target.checked) draft.add(event.target.dataset.id);
     else draft.delete(event.target.dataset.id);
@@ -1391,9 +1868,11 @@ document.addEventListener("change", event => {
     render();
     return;
   }
-  if (event.target.dataset.action === "review-page-size") {
-    state.reviewPageSize = Number(event.target.value);
-    state.reviewPage = 1;
+
+  if (action === "list-page-size") {
+    const pg = getListPage(event.target.dataset.listKey);
+    pg.pageSize = Number(event.target.value);
+    pg.page = 1;
     render();
   }
 });
