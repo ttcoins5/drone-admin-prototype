@@ -17,7 +17,9 @@ const menu = [
   { id: "pilot-applications", label: "飞手管理", icon: "飞", children: [
     { id: "pilot-applications", label: "入驻申请" },
     { id: "pilots", label: "已认证飞手" },
-    { id: "tasks", label: "任务需求与意愿" }
+    { id: "flight-reports", label: "飞行报备管理" },
+    { id: "tasks", label: "任务需求与意愿" },
+    { id: "task-detail", label: "任务详情" }
   ]},
   { id: "invoices", label: "发票中心", icon: "票" },
   { id: "about", label: "关于我们", icon: "企" }
@@ -28,7 +30,9 @@ const titles = {
   "user-detail": "用户详情", categories: "商品分类管理", products: "商品列表",
   "product-edit": "创建 / 编辑商品", orders: "订单列表", "order-detail": "订单详情与派单",
   training: "培训报名线索", "training-detail": "培训报名详情", "pilot-applications": "飞手入驻申请", "pilot-review": "飞手审核详情",
-  pilots: "已认证飞手", "pilot-detail": "飞手详情", tasks: "任务需求与意愿",
+  pilots: "已认证飞手", "pilot-detail": "飞手详情",
+  "flight-reports": "飞行报备管理", "flight-report-detail": "飞行报备详情",
+  tasks: "任务需求与意愿", "task-detail": "任务详情",
   invoices: "发票中心", "invoice-detail": "发票申请详情", about: "关于我们"
 };
 
@@ -279,18 +283,17 @@ const pageDocs = {
     ]
   },
   pilots: {
-    summary: "查看已通过审核的飞手列表及当前服务状态。",
+    summary: "查看已通过审核的飞手列表及认证资料。",
     operations: [
-      "按姓名、手机号、主体、状态筛选飞手",
-      "点击「查看详情」查看飞手完整资料与历史 / 进行中订单"
+      "按姓名、手机号、主体筛选飞手",
+      "点击「查看详情」查看飞手完整资料与关联订单"
     ],
     fields: [
       ["飞手", "认证飞手姓名"],
       ["主体", "个人或公司"],
       ["所属公司", "公司飞手关联企业"],
       ["服务区域", "主要接单区域"],
-      ["设备", "主要执飞机型"],
-      ["状态", "空闲或服务中"]
+      ["设备", "主要执飞机型"]
     ]
   },
   "pilot-detail": {
@@ -298,31 +301,94 @@ const pageDocs = {
     operations: [
       "查看飞手认证信息、资质上传与设备信息",
       "主体为公司时查看公司信息与水印执照",
-      "下方列表展示已分配订单及个人完成进度"
+      "下方列表展示已分配订单；个人状态为订单维度，表示该飞手在该单下是否接单及履约进度"
     ],
     fields: [
       ["飞手资料", "申请人、所属主体、联系电话、出生年月、所在区域、认证时间"],
       ["公司信息", "主体为公司时：公司名称、联系电话、所在区域、地址、水印执照"],
       ["资质资料", "身份证、操作执照、无人机照片上传记录"],
       ["设备信息", "机型选择、序列号、唯一识别码"],
-      ["分配订单", "与该飞手关联的订单及各自履约状态"],
-      ["个人状态", "飞手在该订单中的服务进度，与订单总状态独立"]
+      ["分配订单", "与该飞手关联的订单及各自订单状态"],
+      ["个人状态", "订单维度：该飞手在该订单下是否接单及履约进度，非飞手全局字段"]
+    ]
+  },
+  "flight-reports": {
+    summary: "管理飞手在小程序提交的飞行报备数据，支持查看与确认，并可推送至第三方（待对接）。",
+    operations: [
+      "按报备编号、飞手姓名、机型、状态筛选",
+      "点击「查看详情」查看完整报备信息与飞行器信息",
+      "待确认报备可在详情页执行「确认报备」",
+      "「推送第三方」为预留能力，点击仅提示待对接"
+    ],
+    fields: [
+      ["报备编号", "飞行报备唯一编号"],
+      ["起飞飞手", "提交报备的认证飞手姓名"],
+      ["机型", "执飞无人机型号"],
+      ["飞行架次", "本次报备的飞行架次"],
+      ["飞行时长", "累计飞行时长"],
+      ["报备时间", "飞手在小程序提交报备的时间"],
+      ["状态", "待确认或已确认"]
+    ]
+  },
+  "flight-report-detail": {
+    summary: "查看单条飞行报备的完整内容与飞行器信息，并完成确认或第三方推送操作。",
+    operations: [
+      "展示飞手在小程序填写的飞行动态信息",
+      "待确认时可点击「确认报备」标记为已确认",
+      "「推送第三方」将飞手及报备信息推送外部系统（原型仅占位，待业务确认）"
+    ],
+    fields: [
+      ["报备编号", "飞行报备唯一编号"],
+      ["起飞飞手", "提交报备的认证飞手"],
+      ["联系电话", "飞手联系方式，脱敏展示"],
+      ["飞行区域", "计划或实际飞行区域"],
+      ["飞行日期", "飞行作业日期"],
+      ["飞行时段", "飞行起止时段"],
+      ["飞行架次", "本次飞行架次"],
+      ["飞行时长", "累计飞行时长"],
+      ["备注", "飞手填写的补充说明"],
+      ["报备时间", "小程序提交时间"],
+      ["来源", "默认小程序"],
+      ["状态", "待确认 / 已确认"],
+      ["机型选择", "执飞无人机型号"],
+      ["序列号", "无人机机身序列号"],
+      ["唯一识别码", "无人机唯一识别码"]
     ]
   },
   tasks: {
     summary: "发布独立任务需求，收集飞手参与意愿，不关联商品订单。",
     operations: [
-      "点击「发布任务需求」创建新的征集任务",
+      "点击「发布任务需求」填写标题、服务时间、地址、备注与附文本说明",
+      "点击「查看详情」查看任务完整展示内容",
       "点击「查看意愿」查看已提交参与的飞手名单",
       "任务可关闭征集；关闭后不再接受新意愿"
     ],
     fields: [
       ["需求编号", "任务唯一编号"],
-      ["需求标题", "任务名称，面向飞手展示"],
-      ["服务日期", "计划执行日期"],
-      ["区域", "任务所在区域"],
+      ["标题", "任务名称，面向飞手展示"],
+      ["服务时间", "计划服务日期与时段"],
+      ["地址", "任务执行地址"],
+      ["备注", "补充说明，如设备或现场要求"],
+      ["附文本说明", "富文本任务详情，面向飞手展示"],
       ["状态", "征集中或已关闭"],
       ["意愿人数", "已表达参与意向的飞手数量"]
+    ]
+  },
+  "task-detail": {
+    summary: "查看单个任务需求的完整展示内容。",
+    operations: [
+      "展示标题、服务时间、地址、备注与附文本说明",
+      "附文本说明以富文本形式只读展示",
+      "点击「返回列表」回到任务需求列表"
+    ],
+    fields: [
+      ["需求编号", "任务唯一编号"],
+      ["标题", "任务名称"],
+      ["服务时间", "计划服务日期与时段"],
+      ["地址", "任务执行地址"],
+      ["备注", "补充说明"],
+      ["附文本说明", "富文本任务详情"],
+      ["状态", "征集中或已关闭"]
     ]
   },
   invoices: {
@@ -356,18 +422,16 @@ const pageDocs = {
   about: {
     summary: "配置「关于我们」页面内容，同步至小程序企业介绍模块。",
     operations: [
-      "编辑企业名称、电话、地址、简介及 Logo",
-      "设置小程序展示状态：展示或隐藏",
+      "企业名称与企业 Logo 只读展示，来源于企业主体资料",
+      "企业介绍使用富文本编辑器，支持字体、字号、排版与图文",
+      "电话、地址等信息可在企业介绍正文中自行编排",
       "点击「预览」查看小程序端展示效果",
       "保存后更新线上展示内容"
     ],
     fields: [
-      ["企业名称", "小程序关于页标题"],
-      ["联系电话", "对外展示电话"],
-      ["企业地址", "线下地址信息"],
-      ["企业 Logo", "品牌标识图片"],
-      ["小程序展示状态", "控制是否在小程序显示该模块"],
-      ["企业简介", "企业介绍正文"]
+      ["企业名称", "只读展示，小程序关于页标题"],
+      ["企业 Logo", "只读展示，品牌标识"],
+      ["企业介绍", "富文本正文，支持字体排版、字号与图文"]
     ]
   }
 };
@@ -444,6 +508,13 @@ const state = {
   viewingPilotAppId: "FS26061305",
   viewingPilotId: "P001",
   viewingTrainingId: "PX26061301",
+  viewingFlightReportId: "FB26061401",
+  viewingTaskId: "RW26061301",
+  aboutConfig: {
+    name: "四川云北无人机科技有限公司",
+    logoName: "yunbei-logo.png",
+    intro: "<p><strong>四川云北无人机科技有限公司</strong>专注于无人机行业服务、飞手协作、技术培训与企业解决方案。</p><ul><li>低空经济综合服务</li><li>飞手协作与任务派发</li><li>企业级无人机应用解决方案</li></ul><p><strong>联系电话：</strong>028-8888 6626</p><p><strong>地址：</strong>四川省成都市高新区天府软件园</p>"
+  },
   docPanelOpen: localStorage.getItem("droneAdminDocPanel") !== "0"
 };
 
@@ -638,7 +709,7 @@ const pilotRecords = [
       address: "成都市高新区益州大道北段 168 号",
       watermarkedLicense: { uploaded: true, preview: "营业执照（水印）.jpg" }
     },
-    certifiedAt: "2026-05-22", status: "服务中"
+    certifiedAt: "2026-05-22"
   },
   {
     id: "P002", name: "王伟", subject: "个人", phone: "186****5520", birthday: "1991-04", area: "成都双流",
@@ -647,7 +718,7 @@ const pilotRecords = [
     dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
     droneModel: "M350 RTK", serialNo: "3X****22", uniqueId: "UAS-****5520",
     company: null,
-    certifiedAt: "2026-05-18", status: "空闲"
+    certifiedAt: "2026-05-18"
   },
   {
     id: "P003", name: "陈宇", subject: "公司", phone: "138****2605", birthday: "1992-08", area: "成都高新",
@@ -660,7 +731,7 @@ const pilotRecords = [
       address: "成都市高新区天府大道中段 88 号",
       watermarkedLicense: { uploaded: true, preview: "营业执照（水印）.jpg" }
     },
-    certifiedAt: "2026-05-15", status: "空闲"
+    certifiedAt: "2026-05-15"
   },
   {
     id: "P004", name: "周航", subject: "个人", phone: "137****7720", birthday: "1990-06", area: "成都武侯",
@@ -669,7 +740,7 @@ const pilotRecords = [
     dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
     droneModel: "M350 RTK", serialNo: "3X****55", uniqueId: "UAS-****7720",
     company: null,
-    certifiedAt: "2026-05-10", status: "服务中"
+    certifiedAt: "2026-05-10"
   },
   {
     id: "P005", name: "赵宇", subject: "个人", phone: "136****4412", birthday: "1993-12", area: "成都锦江",
@@ -678,7 +749,7 @@ const pilotRecords = [
     dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
     droneModel: "Mavic 3E", serialNo: "1Z****19", uniqueId: "UAS-****4412",
     company: null,
-    certifiedAt: "2026-05-08", status: "空闲"
+    certifiedAt: "2026-05-08"
   },
   {
     id: "P006", name: "刘洋", subject: "个人", phone: "139****1102", birthday: "1995-03", area: "成都双流",
@@ -687,17 +758,86 @@ const pilotRecords = [
     dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
     droneModel: "Mavic 3E", serialNo: "1Z****42", uniqueId: "UAS-****3315",
     company: null,
-    certifiedAt: "2026-05-05", status: "空闲"
+    certifiedAt: "2026-05-05"
+  }
+];
+
+const flightReportRecords = [
+  {
+    id: "FB26061401", pilotName: "李明", pilotPhone: "138****9036", droneModel: "Mavic 3E",
+    serialNo: "1Z****08", uniqueId: "UAS-****1205", flightArea: "成都高新区",
+    flightDate: "2026-06-14", flightTime: "09:30-11:20", sorties: 3, duration: "1h 50min",
+    remark: "园区航拍测绘作业", submittedAt: "2026-06-14 08:45", source: "小程序", status: "待确认"
+  },
+  {
+    id: "FB26061302", pilotName: "王伟", pilotPhone: "186****5520", droneModel: "M350 RTK",
+    serialNo: "3X****22", uniqueId: "UAS-****5520", flightArea: "成都双流",
+    flightDate: "2026-06-13", flightTime: "14:00-16:30", sorties: 5, duration: "2h 30min",
+    remark: "农田测绘巡检", submittedAt: "2026-06-13 13:20", source: "小程序", status: "已确认"
+  },
+  {
+    id: "FB26061203", pilotName: "陈宇", pilotPhone: "138****2605", droneModel: "M350 RTK",
+    serialNo: "3X****91", uniqueId: "UAS-****8821", flightArea: "成都天府新区",
+    flightDate: "2026-06-12", flightTime: "08:00-10:15", sorties: 2, duration: "2h 15min",
+    remark: "—", submittedAt: "2026-06-12 07:40", source: "小程序", status: "已确认"
+  },
+  {
+    id: "FB26061104", pilotName: "周航", pilotPhone: "137****7720", droneModel: "M350 RTK",
+    serialNo: "3X****55", uniqueId: "UAS-****7720", flightArea: "成都武侯区",
+    flightDate: "2026-06-11", flightTime: "10:00-11:40", sorties: 4, duration: "1h 40min",
+    remark: "电力线路初勘", submittedAt: "2026-06-11 09:15", source: "小程序", status: "待确认"
+  },
+  {
+    id: "FB26061005", pilotName: "赵宇", pilotPhone: "136****4412", droneModel: "Mavic 3E",
+    serialNo: "1Z****19", uniqueId: "UAS-****4412", flightArea: "成都锦江区",
+    flightDate: "2026-06-10", flightTime: "15:20-16:50", sorties: 2, duration: "1h 30min",
+    remark: "活动航拍 rehearsal", submittedAt: "2026-06-10 14:55", source: "小程序", status: "已确认"
+  },
+  {
+    id: "FB26060906", pilotName: "刘洋", pilotPhone: "139****1102", droneModel: "Mavic 3E",
+    serialNo: "1Z****42", uniqueId: "UAS-****3315", flightArea: "成都双流",
+    flightDate: "2026-06-09", flightTime: "07:30-09:00", sorties: 3, duration: "1h 30min",
+    remark: "—", submittedAt: "2026-06-09 07:10", source: "小程序", status: "待确认"
   }
 ];
 
 const taskRecords = [
-  { id: "RW26061301", title: "成都园区航拍需求", date: "2026-06-18", area: "成都高新", status: "征集中", interest: 6 },
-  { id: "RW26061003", title: "农田植保飞防协作", date: "2026-06-20", area: "眉山", status: "征集中", interest: 12 },
-  { id: "RW26060508", title: "活动现场航拍", date: "2026-06-08", area: "成都锦江", status: "已关闭", interest: 4 },
-  { id: "RW26060402", title: "桥梁巡检协助", date: "2026-06-22", area: "成都双流", status: "征集中", interest: 8 },
-  { id: "RW26060305", title: "电力线路初勘", date: "2026-06-25", area: "德阳", status: "征集中", interest: 5 },
-  { id: "RW26060201", title: "景区宣传拍摄", date: "2026-06-05", area: "乐山", status: "已关闭", interest: 3 }
+  {
+    id: "RW26061301", title: "成都园区航拍需求", serviceTime: "2026-06-18 09:00-12:00",
+    address: "成都市高新区天府软件园 B 区", remark: "需携带 RTK 设备，现场有门禁",
+    description: "<p>独立发布需求并收集飞手参与意愿，不关联商品订单。</p><ul><li>航拍范围约 2 平方公里</li><li>需提交初步成果样片</li><li>作业高度不超过 120 米</li></ul>",
+    status: "征集中", interest: 6
+  },
+  {
+    id: "RW26061003", title: "农田植保飞防协作", serviceTime: "2026-06-20 07:00-11:30",
+    address: "眉山市东坡区某农业示范园", remark: "提供统一药剂，飞手自备植保机",
+    description: "<p>协助当地合作社完成<strong>300 亩</strong>水稻飞防作业。</p><p>要求飞手具备植保作业经验，服从现场调度。</p>",
+    status: "征集中", interest: 12
+  },
+  {
+    id: "RW26060508", title: "活动现场航拍", serviceTime: "2026-06-08 14:00-18:00",
+    address: "成都市锦江区春熙路商圈", remark: "—",
+    description: "<p>商业活动开幕航拍，需 1 名飞手配合地面导演完成指定机位拍摄。</p>",
+    status: "已关闭", interest: 4
+  },
+  {
+    id: "RW26060402", title: "桥梁巡检协助", serviceTime: "2026-06-22 08:30-12:00",
+    address: "成都市双流区跨江大桥南段", remark: "需超视距执照，风力大于 5 级暂停作业",
+    description: "<p>协助工程单位采集桥梁底部与墩柱影像资料。</p><ul><li>重点拍摄 3 处疑似裂缝位置</li><li>成果需按模板整理</li></ul>",
+    status: "征集中", interest: 8
+  },
+  {
+    id: "RW26060305", title: "电力线路初勘", serviceTime: "2026-06-25 06:30-10:30",
+    address: "德阳市旌阳区 110kV 线路走廊", remark: "需提前报备飞行计划",
+    description: "<p>对新建线路走廊进行航拍初勘，输出正射与视频素材。</p>",
+    status: "征集中", interest: 5
+  },
+  {
+    id: "RW26060201", title: "景区宣传拍摄", serviceTime: "2026-06-05 15:00-17:30",
+    address: "乐山市市中区某景区入口", remark: "—",
+    description: "<p>景区夏季宣传短片航拍素材采集，需配合景区开放时间作业。</p>",
+    status: "已关闭", interest: 3
+  }
 ];
 
 const productReviews = [
@@ -781,6 +921,18 @@ function activePilot() {
 
 function activeTraining() {
   return trainingRecords.find(item => item.id === state.viewingTrainingId) || trainingRecords[0];
+}
+
+function activeFlightReport() {
+  return flightReportRecords.find(item => item.id === state.viewingFlightReportId) || flightReportRecords[0];
+}
+
+function activeTask() {
+  return taskRecords.find(item => item.id === state.viewingTaskId) || taskRecords[0];
+}
+
+function flightReportStatusTag(status) {
+  return status === "已确认" ? tag("已确认") : tag("待确认");
 }
 
 function pilotCompanyName(profile) {
@@ -1181,44 +1333,114 @@ function rowActions({ edit, moveAction, deleteAction, id, index, total }) {
   return `<div class="row-actions">${editBtn}${up}${down}${button("删除", deleteAction, "small danger", `data-id="${id}"`)}</div>`;
 }
 
-function destroyProductEditor() {
-  state.productToolbar?.destroy?.();
-  state.productEditor?.destroy?.();
+function destroyRichEditor() {
+  state.richEditorToolbar?.destroy?.();
+  state.richEditor?.destroy?.();
+  state.richEditorToolbar = null;
+  state.richEditor = null;
   state.productToolbar = null;
   state.productEditor = null;
 }
 
-function initProductEditor() {
-  const product = activeProduct();
-  const toolbarEl = document.getElementById("product-intro-toolbar");
-  const editorEl = document.getElementById("product-intro-editor");
+function destroyProductEditor() {
+  destroyRichEditor();
+}
+
+const defaultRichToolbarKeys = ["bold", "italic", "through", "|", "bulletedList", "numberedList", "|", "insertLink", "undo", "redo"];
+
+const aboutRichToolbarKeys = [
+  "headerSelect", "fontSize", "fontFamily", "lineHeight", "|",
+  "bold", "italic", "underline", "through", "|",
+  "color", "bgColor", "|",
+  "bulletedList", "numberedList", "|",
+  "justifyLeft", "justifyCenter", "justifyRight", "|",
+  "insertLink", "insertImage", "|",
+  "undo", "redo"
+];
+
+function initRichEditor({
+  toolbarId = "product-intro-toolbar",
+  editorId = "product-intro-editor",
+  html = "<p></p>",
+  readOnly = false,
+  placeholder = "请输入内容...",
+  onChange,
+  toolbarKeys = defaultRichToolbarKeys
+} = {}) {
+  destroyRichEditor();
+  const toolbarEl = document.getElementById(toolbarId);
+  const editorEl = document.getElementById(editorId);
   const { createEditor, createToolbar } = window.wangEditor || {};
-  if (!toolbarEl || !editorEl || !createEditor || !createToolbar) return;
+  if (!editorEl || !createEditor) return;
 
   const editor = createEditor({
-    selector: "#product-intro-editor",
-    html: product.intro || "<p></p>",
+    selector: `#${editorId}`,
+    html,
     config: {
-      placeholder: "请输入商品介绍...",
-      onChange(ed) {
-        product.intro = ed.getHtml();
-      }
+      placeholder,
+      readOnly,
+      onChange: onChange || undefined
     },
     mode: "default"
   });
-  const toolbar = createToolbar({
-    editor,
-    selector: "#product-intro-toolbar",
-    config: { toolbarKeys: ["bold", "italic", "through", "|", "bulletedList", "numberedList", "|", "insertLink", "undo", "redo"] }
-  });
+
+  if (!readOnly && toolbarEl && createToolbar) {
+    const toolbar = createToolbar({
+      editor,
+      selector: `#${toolbarId}`,
+      config: { toolbarKeys }
+    });
+    state.richEditorToolbar = toolbar;
+    state.productToolbar = toolbar;
+  }
+
+  state.richEditor = editor;
   state.productEditor = editor;
-  state.productToolbar = toolbar;
 }
 
-function richEditorContainer() {
-  return `<div class="element-rich-editor">
-    <div id="product-intro-toolbar"></div>
-    <div id="product-intro-editor"></div>
+function initProductEditor() {
+  const product = activeProduct();
+  initRichEditor({
+    html: product.intro || "<p></p>",
+    placeholder: "请输入商品介绍...",
+    onChange(ed) {
+      product.intro = ed.getHtml();
+    }
+  });
+}
+
+function initTaskDescriptionViewer() {
+  const task = activeTask();
+  initRichEditor({
+    toolbarId: "task-description-toolbar",
+    editorId: "task-description-editor",
+    html: task.description || "<p>—</p>",
+    readOnly: true,
+    placeholder: "暂无附文本说明"
+  });
+}
+
+function initAboutEditor() {
+  initRichEditor({
+    toolbarId: "about-intro-toolbar",
+    editorId: "about-intro-editor",
+    html: state.aboutConfig.intro || "<p></p>",
+    placeholder: "请输入企业介绍，支持字体、字号、排版与图文...",
+    toolbarKeys: aboutRichToolbarKeys,
+    onChange(ed) {
+      state.aboutConfig.intro = ed.getHtml();
+    }
+  });
+}
+
+function richEditorContainer({
+  toolbarId = "product-intro-toolbar",
+  editorId = "product-intro-editor",
+  readOnly = false
+} = {}) {
+  return `<div class="element-rich-editor${readOnly ? " is-readonly" : ""}">
+    <div class="element-rich-editor__toolbar" id="${toolbarId}"></div>
+    <div class="element-rich-editor__editor" id="${editorId}"></div>
   </div>`;
 }
 
@@ -1463,20 +1685,48 @@ function pilotReviewPage() {
 
 function pilotsPage() {
   const rows = pilotRecords.map(item => [
-    item.name, item.subject, pilotCompanyName(item), item.area, item.droneModel, tag(item.status),
+    item.name, item.subject, pilotCompanyName(item), item.area, item.droneModel,
     opRoute("查看详情", "pilot-detail", "", `data-pilot-id="${item.id}"`)
   ]);
   return panel("已认证飞手", `<div class="toolbar" style="margin-bottom:14px">
-    <input placeholder="姓名 / 手机号 / 公司"><select><option>全部主体</option><option>个人</option><option>公司</option></select><select><option>全部状态</option><option>空闲</option><option>服务中</option></select>${button("查询","filter","primary")}
-  </div>${paginatedTable("pilots", ["飞手","主体","所属公司","服务区域","设备","状态","操作"], rows)}`);
+    <input placeholder="姓名 / 手机号 / 公司"><select><option>全部主体</option><option>个人</option><option>公司</option></select>${button("查询","filter","primary")}
+  </div>${paginatedTable("pilots", ["飞手","主体","所属公司","服务区域","设备","操作"], rows)}`);
+}
+
+function flightReportsPage() {
+  const rows = flightReportRecords.map(item => [
+    item.id, item.pilotName, item.droneModel, item.sorties, item.duration, item.submittedAt,
+    flightReportStatusTag(item.status),
+    opRoute("查看详情", "flight-report-detail", "", `data-flight-report-id="${item.id}"`)
+  ]);
+  return panel("飞行报备", `<div class="toolbar" style="margin-bottom:14px">
+    <input placeholder="报备编号 / 飞手 / 机型"><select><option>全部状态</option><option>待确认</option><option>已确认</option></select>${button("查询","filter","primary")}
+  </div>${paginatedTable("flight-reports", ["报备编号","起飞飞手","机型","飞行架次","飞行时长","报备时间","状态","操作"], rows)}`);
+}
+
+function flightReportDetailPage() {
+  const report = activeFlightReport();
+  const actions = [
+    report.status === "待确认" ? button("确认报备", "confirm-flight-report", "primary") : "",
+    button("推送第三方", "push-flight-report-third-party")
+  ].filter(Boolean).join("");
+  return panel("报备信息", detailGrid([
+    ["报备编号", report.id], ["起飞飞手", report.pilotName], ["联系电话", report.pilotPhone],
+    ["飞行区域", report.flightArea], ["飞行日期", report.flightDate], ["飞行时段", report.flightTime],
+    ["飞行架次", String(report.sorties)], ["飞行时长", report.duration],
+    ["备注", report.remark || "—", true], ["报备时间", report.submittedAt],
+    ["来源", report.source || "小程序"], ["状态", flightReportStatusTag(report.status)]
+  ]), routeButton("返回列表", "flight-reports", ""))
+  + panel("飞行器信息", detailGrid([
+    ["机型选择", report.droneModel], ["序列号", report.serialNo], ["唯一识别码", report.uniqueId]
+  ]), actions);
 }
 
 function pilotDetailPage() {
   const pilot = activePilot();
   return panel("飞手资料", detailGrid([
     ["姓名", pilot.name], ["所属主体", pilot.subject], ["联系电话", pilot.phone],
-    ["出生年月", pilot.birthday], ["所在区域", pilot.area],
-    ["认证时间", pilot.certifiedAt], ["当前状态", tag(pilot.status)]
+    ["出生年月", pilot.birthday], ["所在区域", pilot.area], ["认证时间", pilot.certifiedAt]
   ]), routeButton("返回飞手列表","pilots",""))
   + pilotCompanyPanel(pilot.company)
   + pilotQualificationPanel(pilot)
@@ -1488,14 +1738,33 @@ function pilotDetailPage() {
 
 function tasksPage() {
   const rows = taskRecords.map(item => [
-    item.id, item.title, item.date, item.area, tag(item.status), item.interest,
-    opButton("查看意愿", "task-interest")
+    item.id, item.title, item.serviceTime, item.address, tag(item.status), item.interest,
+    taskListActions(item)
   ]);
   return panel("任务需求", `<div class="toolbar" style="margin-bottom:14px">
-    <input placeholder="需求标题"><select><option>全部状态</option><option>征集中</option><option>已关闭</option></select>${button("查询","filter","primary")}
+    <input placeholder="需求标题 / 地址"><select><option>全部状态</option><option>征集中</option><option>已关闭</option></select>${button("查询","filter","primary")}
     <span class="spacer"></span>${button("发布任务需求","publish-task","primary")}
-  </div>${paginatedTable("tasks", ["需求编号","需求标题","服务日期","区域","状态","意愿人数","操作"], rows)}
+  </div>${paginatedTable("tasks", ["需求编号","标题","服务时间","地址","状态","意愿人数","操作"], rows)}
   <p class="muted" style="margin:14px 0 0">任务需求仅收集飞手参与意愿，不关联商品订单，也不改变商品订单状态。</p>`);
+}
+
+function taskListActions(task) {
+  const detail = `<button class="button small" data-route="task-detail" data-task-id="${task.id}">查看详情</button>`;
+  const interest = button("查看意愿", "task-interest", "small");
+  return `<div class="row-actions">${detail}${interest}</div>`;
+}
+
+function taskDetailPage() {
+  const task = activeTask();
+  return panel("任务信息", detailGrid([
+    ["需求编号", task.id], ["标题", task.title], ["服务时间", task.serviceTime],
+    ["地址", task.address, true], ["备注", task.remark || "—", true], ["状态", tag(task.status)]
+  ]), routeButton("返回列表", "tasks", ""))
+  + panel("附文本说明", richEditorContainer({
+    toolbarId: "task-description-toolbar",
+    editorId: "task-description-editor",
+    readOnly: true
+  }));
 }
 
 function invoicesPage() {
@@ -1524,15 +1793,20 @@ function invoiceDetailPage() {
   ]), actions);
 }
 
+function aboutLogoPreview(about) {
+  return `<span class="about-logo-preview">${thumb(Boolean(about.logoName), { title: about.logoName || "企业 Logo" })}<span class="muted">${about.logoName || "—"}</span></span>`;
+}
+
 function aboutPage() {
-  return panel("企业介绍配置", formGrid([
-    { label: "企业名称", html: `<input value="四川云北无人机科技有限公司">` },
-    { label: "联系电话", html: `<input value="028-8888 6626">` },
-    { label: "企业地址", wide: true, html: `<input value="四川省成都市高新区天府软件园">` },
-    { label: "企业 Logo", html: `<div class="file-picker-field">${button("上传 Logo", "pick-about-logo")}<span class="muted" id="about-logo-name">未选择</span></div>` },
-    { label: "小程序展示状态", html: `<select><option>展示</option><option>隐藏</option></select>` },
-    { label: "企业简介", wide: true, html: `<textarea>专注于无人机行业服务、飞手协作、技术培训与企业解决方案。</textarea>` }
-  ]), `${button("预览","preview-about")}${button("保存配置","save-about","primary")}`);
+  const about = state.aboutConfig;
+  return panel("基础信息", detailGrid([
+    ["企业名称", about.name],
+    ["企业 Logo", aboutLogoPreview(about)]
+  ]))
+  + panel("企业介绍", richEditorContainer({
+    toolbarId: "about-intro-toolbar",
+    editorId: "about-intro-editor"
+  }), `${button("预览", "preview-about")}${button("保存配置", "save-about", "primary")}`);
 }
 
 function pageContent() {
@@ -1541,7 +1815,9 @@ function pageContent() {
     categories: categoriesPage, products: productsPage, "product-edit": productEditPage,
     orders: ordersPage, "order-detail": orderDetailPage, training: trainingPage, "training-detail": trainingDetailPage,
     "pilot-applications": pilotApplicationsPage, "pilot-review": pilotReviewPage,
-    pilots: pilotsPage, "pilot-detail": pilotDetailPage, tasks: tasksPage,
+    pilots: pilotsPage, "pilot-detail": pilotDetailPage,
+    "flight-reports": flightReportsPage, "flight-report-detail": flightReportDetailPage,
+    tasks: tasksPage, "task-detail": taskDetailPage,
     invoices: invoicesPage, "invoice-detail": invoiceDetailPage, about: aboutPage
   };
   return (pages[state.page] || dashboardPage)();
@@ -1560,9 +1836,11 @@ function render() {
     });
     return;
   }
-  destroyProductEditor();
+  destroyRichEditor();
   app.innerHTML = `<div class="shell">${sidebar()}<main class="main">${topbar()}<div class="page-layout"><div class="page">${pageContent()}</div>${docPanel()}</div></main></div>`;
   if (state.page === "product-edit") requestAnimationFrame(() => initProductEditor());
+  if (state.page === "task-detail") requestAnimationFrame(() => initTaskDescriptionViewer());
+  if (state.page === "about") requestAnimationFrame(() => initAboutEditor());
 }
 
 function navigate(route) {
@@ -1669,15 +1947,6 @@ async function handlePickCategoryIcon() {
   toast(`已选择：${file.name}`);
 }
 
-async function handlePickAboutLogo() {
-  const files = await pickLocalFile({ accept: "image/*" });
-  const file = files[0];
-  if (!file) return;
-  const nameEl = document.getElementById("about-logo-name");
-  if (nameEl) nameEl.textContent = file.name;
-  toast(`已选择 Logo：${file.name}`);
-}
-
 async function handleUploadInvoice() {
   const files = await pickLocalFile({ accept: ".pdf,.jpg,.jpeg,.png,image/*" });
   const file = files[0];
@@ -1754,6 +2023,7 @@ function modal(title, body, footer = "", wide = false) {
 }
 
 function closeModal() {
+  destroyRichEditor();
   document.getElementById("overlay").innerHTML = "";
 }
 
@@ -1776,6 +2046,8 @@ document.addEventListener("click", event => {
     if (route.dataset.pilotAppId) state.viewingPilotAppId = route.dataset.pilotAppId;
     if (route.dataset.pilotId) state.viewingPilotId = route.dataset.pilotId;
     if (route.dataset.trainingId) state.viewingTrainingId = route.dataset.trainingId;
+    if (route.dataset.flightReportId) state.viewingFlightReportId = route.dataset.flightReportId;
+    if (route.dataset.taskId) state.viewingTaskId = route.dataset.taskId;
     navigate(route.dataset.route);
     return;
   }
@@ -1899,7 +2171,7 @@ document.addEventListener("click", event => {
     render();
   } else if (action === "save-product") {
     const product = readProductFormFromPage();
-    if (state.productEditor) product.intro = state.productEditor.getHtml();
+    if (state.richEditor) product.intro = state.richEditor.getHtml();
     if (!product.name.trim()) {
       toast("请填写商品名称");
       return;
@@ -1983,6 +2255,17 @@ document.addEventListener("click", event => {
     closeModal();
     render();
     toast(wasPending ? `已分配 ${selected.length} 名飞手，订单进入待服务` : `已更新飞手名单（${selected.length} 名）`);
+  } else if (action === "confirm-flight-report") {
+    const report = activeFlightReport();
+    if (report.status === "已确认") {
+      toast("该报备已确认");
+      return;
+    }
+    report.status = "已确认";
+    render();
+    toast("飞行报备已确认");
+  } else if (action === "push-flight-report-third-party") {
+    toast("第三方推送能力待确认，当前为占位按钮");
   } else if (action === "approve-pilot") {
     modal("确认审核通过", `<p>确认该申请资料完整并通过飞手入驻审核？</p>`,
       `${button("取消","close-modal")}${button("确认通过","confirm-pilot","primary")}`);
@@ -2000,12 +2283,21 @@ document.addEventListener("click", event => {
     render();
     toast("飞手申请已审核通过");
   } else if (action === "publish-task") {
-    modal("发布独立任务需求", formGrid([
-      { label: "需求标题", wide: true, html: `<input value="成都园区航拍需求">` },
-      { label: "服务类型", html: `<select><option>工程测绘</option><option>活动拍摄</option><option>农业植保</option></select>` },
-      { label: "服务日期", html: `<input type="date" value="2026-06-18">` },
-      { label: "需求说明", wide: true, html: `<textarea>独立发布需求并收集飞手参与意愿，不关联商品订单。</textarea>` }
-    ]), `${button("取消","close-modal")}${button("发布需求","save-modal","primary")}`, true);
+    modal("发布独立任务需求", `${formGrid([
+      { label: "标题", wide: true, html: `<input value="成都园区航拍需求">` },
+      { label: "服务时间", html: `<input value="2026-06-18 09:00-12:00" placeholder="如 2026-06-18 09:00-12:00">` },
+      { label: "地址", wide: true, html: `<input value="成都市高新区天府软件园 B 区">` },
+      { label: "备注", wide: true, html: `<textarea placeholder="补充说明，如设备或现场要求">需携带 RTK 设备，现场有门禁</textarea>` }
+    ])}<div class="form-field span-2"><label>附文本说明</label>${richEditorContainer({
+      toolbarId: "task-publish-toolbar",
+      editorId: "task-publish-editor"
+    })}</div>`, `${button("取消","close-modal")}${button("发布需求","save-modal","primary")}`, true);
+    requestAnimationFrame(() => initRichEditor({
+      toolbarId: "task-publish-toolbar",
+      editorId: "task-publish-editor",
+      html: "<p>独立发布需求并收集飞手参与意愿，不关联商品订单。</p>",
+      placeholder: "请输入附文本说明..."
+    }));
   } else if (action === "task-interest") {
     modal("飞手参与意愿名单", table(["飞手","主体","区域","设备","提交时间"], [
       ["李明","公司","成都高新","Mavic 3E","2026-06-13 16:20"],
@@ -2026,8 +2318,6 @@ document.addEventListener("click", event => {
     toast("发票申请已驳回");
   } else if (action === "pick-category-icon") {
     handlePickCategoryIcon();
-  } else if (action === "pick-about-logo") {
-    handlePickAboutLogo();
   } else if (action === "upload-invoice") {
     handleUploadInvoice();
   } else if (action === "preview-order-remark-photo") {
@@ -2039,10 +2329,12 @@ document.addEventListener("click", event => {
       <p class="muted">${photo.name}</p>
     </div>`, button("关闭", "close-modal"));
   } else if (action === "preview-about") {
-    modal("小程序展示预览", `<div class="preview-card"><h2>四川云北无人机科技有限公司</h2>
-      <p>专注于无人机行业服务、飞手协作、技术培训与企业解决方案。</p>
-      <p><strong>联系电话：</strong>028-8888 6626</p><p><strong>地址：</strong>四川省成都市高新区天府软件园</p></div>`, button("关闭","close-modal"));
+    const about = state.aboutConfig;
+    if (state.richEditor) about.intro = state.richEditor.getHtml();
+    modal("小程序展示预览", `<div class="preview-card">${aboutLogoPreview(about)}<h2>${about.name}</h2>
+      <div class="preview-rich">${about.intro || "<p>—</p>"}</div></div>`, button("关闭", "close-modal"));
   } else if (action === "save-about") {
+    if (state.richEditor) state.aboutConfig.intro = state.richEditor.getHtml();
     toast("企业介绍配置已保存（模拟）");
   } else if (action === "save-modal") {
     closeModal();
