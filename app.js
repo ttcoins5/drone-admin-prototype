@@ -27,7 +27,7 @@ const titles = {
   dashboard: "工作台", carousel: "轮播图管理", users: "用户列表",
   "user-detail": "用户详情", categories: "商品分类管理", products: "商品列表",
   "product-edit": "创建 / 编辑商品", orders: "订单列表", "order-detail": "订单详情与派单",
-  training: "培训报名线索", "pilot-applications": "飞手入驻申请", "pilot-review": "飞手审核详情",
+  training: "培训报名线索", "training-detail": "培训报名详情", "pilot-applications": "飞手入驻申请", "pilot-review": "飞手审核详情",
   pilots: "已认证飞手", "pilot-detail": "飞手详情", tasks: "任务需求与意愿",
   invoices: "发票中心", "invoice-detail": "发票申请详情", about: "关于我们"
 };
@@ -164,8 +164,10 @@ const pageDocs = {
     operations: [
       "按订单号、用户、商品、状态、是否需要飞手筛选",
       "列表状态列 hover 可查看该单完整流转路径",
+      "状态颜色：待付款/待评价=橙色，待派单=红色（需管理员操作），待服务/待交付=蓝色，已完成=绿色",
+      "需飞手且待派单的订单，列表显示「去派单」，点击直接弹窗指派飞手（与详情「分配飞手」同一逻辑）",
       "点击「查看详情」进入订单详情，顶部步骤条展示动态流转进度",
-      "需飞手服务的订单可在详情页分配飞手"
+      "待服务阶段在详情页「调整飞手」修改名单，状态不变"
     ],
     fields: [
       ["订单号", "系统唯一订单编号"],
@@ -173,7 +175,7 @@ const pageDocs = {
       ["商品/服务", "所购商品名称"],
       ["金额", "订单应付金额，线下报价类显示文案"],
       ["需要飞手", "下单时快照，表示是否需分配飞手"],
-      ["状态", "当前流转节点；合法值因快照组合而异，见订单详情说明"],
+      ["状态", "当前流转节点；待派单为红色待办；合法值因快照组合而异，见订单详情说明"],
       ["流转路径（在线支付+飞手）", "订单生成 → 待付款 → 待派单 → 待服务 → 待评价 → 已完成"],
       ["流转路径（在线支付+无飞手）", "订单生成 → 待付款 → 待交付 → 待评价 → 已完成"],
       ["流转路径（非在线支付+飞手）", "订单生成 → 待派单 → 待服务 → 待评价 → 已完成"],
@@ -188,7 +190,8 @@ const pageDocs = {
       "步骤条下方展示本单完整流转路径摘要",
       "「订单信息快照」展示金额与业务属性（下单时保存，不可改）",
       "商品需预约时展示「预约信息」面板；无需预约则不展示",
-      "需飞手服务时展示「飞手分配与履约」面板，待派单 / 待服务阶段可分配飞手",
+      "需飞手服务时展示「飞手分配与履约」面板：待派单显示「分配飞手」，待服务显示「调整飞手」",
+      "列表「去派单」与详情「分配飞手」为同一指派弹窗；调整飞手仅改名单，不改变订单状态",
       "无需飞手时跳过派单节点，使用「待交付」并隐藏飞手面板"
     ],
     fields: [
@@ -200,11 +203,10 @@ const pageDocs = {
     ]
   },
   training: {
-    summary: "管理培训报名线索，记录联系跟进与转化结果。",
+    summary: "展示小程序用户提交的培训报名表单，后台仅只读查看，无跟进或状态变更操作。",
     operations: [
-      "按联系人、手机号、课程、状态筛选线索",
-      "点击「查看 / 跟进」填写跟进记录并更新线索状态",
-      "状态流转：待联系 → 已联系 → 已转化 / 已关闭"
+      "按联系人、手机号、课程筛选报名记录",
+      "点击「查看详情」查看完整报名信息"
     ],
     fields: [
       ["线索编号", "报名记录唯一编号"],
@@ -212,7 +214,24 @@ const pageDocs = {
       ["课程意向", "用户感兴趣的课程类型"],
       ["手机号", "联系方式，脱敏展示"],
       ["报名时间", "用户在小程序提交报名的时间"],
-      ["状态", "当前跟进阶段"]
+      ["备注", "用户填写的补充说明"],
+      ["来源", "表单提交来源，默认小程序"]
+    ]
+  },
+  "training-detail": {
+    summary: "查看单条培训报名表的完整提交内容，只读展示。",
+    operations: [
+      "展示用户在小程序填写的全部字段",
+      "无编辑、跟进或状态变更功能"
+    ],
+    fields: [
+      ["线索编号", "报名记录唯一编号"],
+      ["联系人", "报名人姓名或企业联系人"],
+      ["课程意向", "用户感兴趣的课程类型"],
+      ["手机号", "联系方式，脱敏展示"],
+      ["报名时间", "提交时间"],
+      ["备注", "用户填写的补充说明"],
+      ["来源", "表单提交来源"]
     ]
   },
   "pilot-applications": {
@@ -225,8 +244,21 @@ const pageDocs = {
     fields: [
       ["申请编号", "入驻申请唯一编号"],
       ["申请人", "飞手姓名"],
-      ["主体", "个人或公司"],
-      ["所属公司", "公司主体时填写的企业名称"],
+      ["所属主体", "个人或公司"],
+      ["联系电话", "申请人手机号，脱敏展示"],
+      ["出生年月", "申请人出生年月"],
+      ["所在区域", "申请人主要服务区域"],
+      ["身份证正反面", "小程序上传的身份证影像"],
+      ["无人机操作执照", "小程序上传的操作执照"],
+      ["无人机照片", "小程序上传的设备实拍图"],
+      ["机型选择", "执飞无人机型号"],
+      ["序列号", "无人机机身序列号"],
+      ["唯一识别码", "无人机唯一识别码（UAS）"],
+      ["公司名称", "主体为公司时填写"],
+      ["公司联系电话", "主体为公司时填写"],
+      ["公司所在区域", "主体为公司时填写"],
+      ["公司地址", "主体为公司时填写"],
+      ["水印执照", "主体为公司时上传的营业执照（含水印）"],
       ["申请时间", "提交入驻申请的时间"],
       ["状态", "待审核 / 已通过 / 已驳回"]
     ]
@@ -234,39 +266,45 @@ const pageDocs = {
   "pilot-review": {
     summary: "查看飞手入驻资料并完成审核决策。",
     operations: [
-      "核对身份证、执照、设备等资质资料",
+      "核对申请人信息、资质上传与设备信息",
+      "主体为公司时额外核对公司信息与水印执照",
       "审核通过：飞手进入已认证列表，可参与派单",
       "驳回申请：需填写驳回原因，申请人可重新提交"
     ],
     fields: [
-      ["申请信息", "申请人、联系方式、主体与公司信息"],
-      ["资质与设备资料", "身份证、操作执照、无人机设备信息及上传状态"],
-      ["所在区域", "主要服务区域，用于派单匹配"]
+      ["申请信息", "申请人、所属主体、联系电话、出生年月、所在区域"],
+      ["公司信息", "主体为公司时展示：公司名称、联系电话、所在区域、地址、水印执照"],
+      ["资质资料", "身份证正反面、无人机操作执照、无人机照片上传状态"],
+      ["设备信息", "机型选择、序列号、唯一识别码"]
     ]
   },
   pilots: {
     summary: "查看已通过审核的飞手列表及当前服务状态。",
     operations: [
       "按姓名、手机号、主体、状态筛选飞手",
-      "点击「查看详情」查看飞手资料与历史 / 进行中订单"
+      "点击「查看详情」查看飞手完整资料与历史 / 进行中订单"
     ],
     fields: [
       ["飞手", "认证飞手姓名"],
       ["主体", "个人或公司"],
       ["所属公司", "公司飞手关联企业"],
       ["服务区域", "主要接单区域"],
-      ["设备", "主要执飞设备型号"],
+      ["设备", "主要执飞机型"],
       ["状态", "空闲或服务中"]
     ]
   },
   "pilot-detail": {
     summary: "查看单个飞手的完整资料与订单履约记录。",
     operations: [
-      "查看飞手认证信息与当前状态",
+      "查看飞手认证信息、资质上传与设备信息",
+      "主体为公司时查看公司信息与水印执照",
       "下方列表展示已分配订单及个人完成进度"
     ],
     fields: [
-      ["飞手资料", "姓名、主体、公司、联系方式、区域、设备、认证时间"],
+      ["飞手资料", "申请人、所属主体、联系电话、出生年月、所在区域、认证时间"],
+      ["公司信息", "主体为公司时：公司名称、联系电话、所在区域、地址、水印执照"],
+      ["资质资料", "身份证、操作执照、无人机照片上传记录"],
+      ["设备信息", "机型选择、序列号、唯一识别码"],
       ["分配订单", "与该飞手关联的订单及各自履约状态"],
       ["个人状态", "飞手在该订单中的服务进度，与订单总状态独立"]
     ]
@@ -404,6 +442,8 @@ const state = {
   viewingOrderId: "YB26061318",
   viewingInvoiceId: "FP26061307",
   viewingPilotAppId: "FS26061305",
+  viewingPilotId: "P001",
+  viewingTrainingId: "PX26061301",
   docPanelOpen: localStorage.getItem("droneAdminDocPanel") !== "0"
 };
 
@@ -523,43 +563,132 @@ const invoiceRecords = [
 
 const pilotApplications = [
   {
-    id: "FS26061305", applicant: "陈宇", phone: "138****2605", subject: "公司", company: "四川云航科技有限公司",
-    companyPhone: "028-88****26", area: "成都高新", appliedAt: "2026-06-13 15:28", status: "待审核"
+    id: "FS26061305", applicant: "陈宇", subject: "公司", phone: "138****2605", birthday: "1992-08", area: "成都高新",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 超视距驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "DJI M350 RTK", serialNo: "3X****91", uniqueId: "UAS-****8821",
+    company: {
+      name: "四川云航科技有限公司", phone: "028-88****26", area: "成都高新",
+      address: "成都市高新区天府大道中段 88 号",
+      watermarkedLicense: { uploaded: true, preview: "营业执照（水印）.jpg" }
+    },
+    appliedAt: "2026-06-13 15:28", status: "待审核"
   },
   {
-    id: "FS26061302", applicant: "刘洋", phone: "139****1102", subject: "个人", company: "—",
-    companyPhone: "—", area: "成都双流", appliedAt: "2026-06-13 10:16", status: "待审核"
+    id: "FS26061302", applicant: "刘洋", subject: "个人", phone: "139****1102", birthday: "1995-03", area: "成都双流",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 视距内驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "Mavic 3E", serialNo: "1Z****42", uniqueId: "UAS-****3315",
+    company: null,
+    appliedAt: "2026-06-13 10:16", status: "待审核"
   },
   {
-    id: "FS26061208", applicant: "李明", phone: "138****9036", subject: "公司", company: "成都低空服务有限公司",
-    companyPhone: "028-66****18", area: "成都高新", appliedAt: "2026-06-12 09:06", status: "已通过"
+    id: "FS26061208", applicant: "李明", subject: "公司", phone: "138****9036", birthday: "1988-11", area: "成都高新",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 超视距驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "Mavic 3E", serialNo: "1Z****08", uniqueId: "UAS-****1205",
+    company: {
+      name: "成都低空服务有限公司", phone: "028-66****18", area: "成都高新",
+      address: "成都市高新区益州大道北段 168 号",
+      watermarkedLicense: { uploaded: true, preview: "营业执照（水印）.jpg" }
+    },
+    appliedAt: "2026-06-12 09:06", status: "已通过"
   },
   {
-    id: "FS26061103", applicant: "周航", phone: "137****7720", subject: "个人", company: "—",
-    companyPhone: "—", area: "成都武侯", appliedAt: "2026-06-11 17:40", status: "已驳回"
+    id: "FS26061103", applicant: "周航", subject: "个人", phone: "137****7720", birthday: "1990-06", area: "成都武侯",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: false, preview: "—" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "M350 RTK", serialNo: "3X****55", uniqueId: "UAS-****7720",
+    company: null,
+    appliedAt: "2026-06-11 17:40", status: "已驳回"
   },
   {
-    id: "FS26061001", applicant: "赵宇", phone: "136****4412", subject: "个人", company: "—",
-    companyPhone: "—", area: "成都锦江", appliedAt: "2026-06-10 08:55", status: "待审核"
+    id: "FS26061001", applicant: "赵宇", subject: "个人", phone: "136****4412", birthday: "1993-12", area: "成都锦江",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 视距内驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "Mavic 3E", serialNo: "1Z****19", uniqueId: "UAS-****4412",
+    company: null,
+    appliedAt: "2026-06-10 08:55", status: "待审核"
   }
 ];
 
 const trainingRecords = [
-  { id: "PX26061301", contact: "陈先生", course: "CAAC 执照培训", phone: "138****6612", appliedAt: "2026-06-13 10:26", status: "待联系" },
-  { id: "PX26061216", contact: "刘女士", course: "无人机测绘实训", phone: "186****2931", appliedAt: "2026-06-12 16:02", status: "已联系" },
-  { id: "PX26061008", contact: "四川航测公司", course: "企业内训", phone: "189****8807", appliedAt: "2026-06-10 09:31", status: "已转化" },
-  { id: "PX26060904", contact: "王先生", course: "农业植保培训", phone: "135****2208", appliedAt: "2026-06-09 13:18", status: "待联系" },
-  { id: "PX26060802", contact: "李女士", course: "CAAC 执照培训", phone: "139****7711", appliedAt: "2026-06-08 15:44", status: "已关闭" },
-  { id: "PX26060706", contact: "成都建工", course: "企业内训", phone: "028-55****90", appliedAt: "2026-06-07 11:02", status: "已联系" }
+  { id: "PX26061301", contact: "陈先生", course: "CAAC 执照培训", phone: "138****6612", appliedAt: "2026-06-13 10:26", remark: "希望周末班，有飞行基础", source: "小程序" },
+  { id: "PX26061216", contact: "刘女士", course: "无人机测绘实训", phone: "186****2931", appliedAt: "2026-06-12 16:02", remark: "—", source: "小程序" },
+  { id: "PX26061008", contact: "四川航测公司", course: "企业内训", phone: "189****8807", appliedAt: "2026-06-10 09:31", remark: "约 15 人，需上门培训", source: "小程序" },
+  { id: "PX26060904", contact: "王先生", course: "农业植保培训", phone: "135****2208", appliedAt: "2026-06-09 13:18", remark: "—", source: "小程序" },
+  { id: "PX26060802", contact: "李女士", course: "CAAC 执照培训", phone: "139****7711", appliedAt: "2026-06-08 15:44", remark: "咨询价格与开班时间", source: "小程序" },
+  { id: "PX26060706", contact: "成都建工", course: "企业内训", phone: "028-55****90", appliedAt: "2026-06-07 11:02", remark: "需定制测绘方向课程", source: "小程序" }
 ];
 
 const pilotRecords = [
-  { name: "李明", subject: "公司", company: "成都低空服务有限公司", area: "成都高新", device: "Mavic 3E", status: "服务中" },
-  { name: "王伟", subject: "个人", company: "—", area: "成都双流", device: "M350 RTK", status: "空闲" },
-  { name: "陈宇", subject: "公司", company: "四川云航科技有限公司", area: "成都高新", device: "M350 RTK", status: "空闲" },
-  { name: "周航", subject: "个人", company: "—", area: "成都武侯", device: "M350 RTK", status: "服务中" },
-  { name: "赵宇", subject: "个人", company: "—", area: "成都锦江", device: "Mavic 3E", status: "空闲" },
-  { name: "刘洋", subject: "个人", company: "—", area: "成都双流", device: "Mavic 3E", status: "空闲" }
+  {
+    id: "P001", name: "李明", subject: "公司", phone: "138****9036", birthday: "1988-11", area: "成都高新",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 超视距驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "Mavic 3E", serialNo: "1Z****08", uniqueId: "UAS-****1205",
+    company: {
+      name: "成都低空服务有限公司", phone: "028-66****18", area: "成都高新",
+      address: "成都市高新区益州大道北段 168 号",
+      watermarkedLicense: { uploaded: true, preview: "营业执照（水印）.jpg" }
+    },
+    certifiedAt: "2026-05-22", status: "服务中"
+  },
+  {
+    id: "P002", name: "王伟", subject: "个人", phone: "186****5520", birthday: "1991-04", area: "成都双流",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 视距内驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "M350 RTK", serialNo: "3X****22", uniqueId: "UAS-****5520",
+    company: null,
+    certifiedAt: "2026-05-18", status: "空闲"
+  },
+  {
+    id: "P003", name: "陈宇", subject: "公司", phone: "138****2605", birthday: "1992-08", area: "成都高新",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 超视距驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "M350 RTK", serialNo: "3X****91", uniqueId: "UAS-****8821",
+    company: {
+      name: "四川云航科技有限公司", phone: "028-88****26", area: "成都高新",
+      address: "成都市高新区天府大道中段 88 号",
+      watermarkedLicense: { uploaded: true, preview: "营业执照（水印）.jpg" }
+    },
+    certifiedAt: "2026-05-15", status: "空闲"
+  },
+  {
+    id: "P004", name: "周航", subject: "个人", phone: "137****7720", birthday: "1990-06", area: "成都武侯",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 超视距驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "M350 RTK", serialNo: "3X****55", uniqueId: "UAS-****7720",
+    company: null,
+    certifiedAt: "2026-05-10", status: "服务中"
+  },
+  {
+    id: "P005", name: "赵宇", subject: "个人", phone: "136****4412", birthday: "1993-12", area: "成都锦江",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 视距内驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "Mavic 3E", serialNo: "1Z****19", uniqueId: "UAS-****4412",
+    company: null,
+    certifiedAt: "2026-05-08", status: "空闲"
+  },
+  {
+    id: "P006", name: "刘洋", subject: "个人", phone: "139****1102", birthday: "1995-03", area: "成都双流",
+    idCard: { uploaded: true, preview: "身份证正反面.jpg" },
+    license: { uploaded: true, preview: "CAAC 视距内驾驶员.pdf" },
+    dronePhoto: { uploaded: true, preview: "设备实拍.jpg" },
+    droneModel: "Mavic 3E", serialNo: "1Z****42", uniqueId: "UAS-****3315",
+    company: null,
+    certifiedAt: "2026-05-05", status: "空闲"
+  }
 ];
 
 const taskRecords = [
@@ -646,6 +775,49 @@ function activePilotApplication() {
   return pilotApplications.find(item => item.id === state.viewingPilotAppId) || pilotApplications[0];
 }
 
+function activePilot() {
+  return pilotRecords.find(item => item.id === state.viewingPilotId) || pilotRecords[0];
+}
+
+function activeTraining() {
+  return trainingRecords.find(item => item.id === state.viewingTrainingId) || trainingRecords[0];
+}
+
+function pilotCompanyName(profile) {
+  return profile.company?.name || "—";
+}
+
+function pilotUploadStatus(file) {
+  return file?.uploaded ? tag("已上传") : tag("未上传");
+}
+
+function pilotUploadRow(label, file) {
+  return [label, file?.preview || "—", pilotUploadStatus(file)];
+}
+
+function pilotCompanyPanel(company) {
+  if (!company) return "";
+  return panel("公司信息", detailGrid([
+    ["公司名称", company.name],
+    ["联系电话", company.phone],
+    ["所在区域", company.area],
+    ["地址", company.address, true],
+    ["水印执照", `${pilotUploadStatus(company.watermarkedLicense)}${company.watermarkedLicense?.preview ? `<span class="muted"> ${company.watermarkedLicense.preview}</span>` : ""}`]
+  ]));
+}
+
+function pilotQualificationPanel(profile, actions = "") {
+  return panel("资质与设备资料", `${table(["资料类型", "资料内容", "状态"], [
+    pilotUploadRow("身份证正反面", profile.idCard),
+    pilotUploadRow("无人机操作执照", profile.license),
+    pilotUploadRow("无人机照片", profile.dronePhoto)
+  ])}<div style="margin-top:16px">${detailGrid([
+    ["机型选择", profile.droneModel || "—"],
+    ["序列号", profile.serialNo || "—"],
+    ["唯一识别码", profile.uniqueId || "—"]
+  ])}</div>`, actions);
+}
+
 function categoryOptions(selected = "") {
   return state.categories
     .filter(item => item.enabled)
@@ -694,8 +866,33 @@ function orderFlowSummary(order) {
   return getOrderFlow(order).join(" → ");
 }
 
+function statusTag(text) {
+  const map = {
+    "待付款": "amber",
+    "待派单": "red",
+    "待服务": "blue",
+    "待交付": "blue",
+    "待评价": "amber",
+    "已完成": "green"
+  };
+  if (map[text]) return `<span class="tag ${map[text]}">${text}</span>`;
+  return tag(text);
+}
+
+function orderStatusTag(order) {
+  return statusTag(order.status);
+}
+
 function orderStatusCell(order) {
-  return `<span title="本单流转：${orderFlowSummary(order)}">${tag(order.status)}</span>`;
+  return `<span title="本单流转：${orderFlowSummary(order)}">${statusTag(order.status)}</span>`;
+}
+
+function orderListActions(order) {
+  const assign = order.needPilot && order.status === "待派单"
+    ? button("去派单", "assign-pilots", "small primary", `data-order-id="${order.id}"`)
+    : "";
+  const detail = `<button class="button small" data-route="order-detail" data-order-id="${order.id}">查看详情</button>`;
+  return `<div class="row-actions">${assign}${detail}</div>`;
 }
 
 function orderSteps(order) {
@@ -829,14 +1026,14 @@ function topbar() {
 function dashboardPage() {
   const todayOrderRows = orderRecords.map(item => [
     item.id, item.user, item.service, item.amount, item.needPilot ? "需要" : "不需要",
-    tag(item.status), opRoute("查看详情", "order-detail", "", `data-order-id="${item.id}"`)
+    orderStatusCell(item), orderListActions(item)
   ]);
   const pendingOrderRows = orderRecords.filter(item => item.status === "待派单").map((item, index) => [
     item.id, item.user, item.service, formatOrderAppointmentBrief(item), index ? "56min" : "2h 18min",
-    opRoute("去派单", "order-detail", "", `data-order-id="${item.id}"`)
+    orderListActions(item)
   ]);
   const pilotAppRows = pilotApplications.filter(item => item.status === "待审核").map(item => [
-    item.id, item.applicant, item.subject, item.company, item.appliedAt,
+    item.id, item.applicant, item.subject, pilotCompanyName(item), item.appliedAt,
     opRoute("去审核", "pilot-review", "", `data-pilot-app-id="${item.id}"`)
   ]);
   const invoiceRows = invoiceRecords.filter(item => item.status === "待处理").map(item => [
@@ -1189,7 +1386,7 @@ function productEditPage() {
 function ordersPage() {
   const rows = orderRecords.map(item => [
     item.id, item.user, item.service, item.amount, item.needPilot ? "需要" : "不需要",
-    orderStatusCell(item), opRoute("查看详情", "order-detail", "", `data-order-id="${item.id}"`)
+    orderStatusCell(item), orderListActions(item)
   ]);
   return panel("订单列表", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="订单号 / 用户 / 商品"><select><option>全部状态</option><option>待付款</option><option>待派单</option><option>待服务</option><option>待交付</option><option>待评价</option><option>已完成</option></select>
@@ -1200,11 +1397,14 @@ function ordersPage() {
 function orderDetailPage() {
   const order = activeOrder();
   const canAssignPilot = order.needPilot && ["待派单", "待服务"].includes(order.status);
+  const pilotAction = canAssignPilot
+    ? (order.status === "待派单" ? button("分配飞手", "assign-pilots", "primary") : button("调整飞手", "assign-pilots", "small"))
+    : "";
   const pilots = order.assignedPilots.length
     ? table(["飞手","区域","设备","个人状态"], order.assignedPilots.map(p => [p.name, p.area, p.device, tag(p.status)]))
     : `<p class="empty">尚未分配飞手</p>`;
   const pilotPanel = order.needPilot
-    ? panel("飞手分配与履约", pilots, canAssignPilot ? button("分配 / 调整飞手", "assign-pilots", "primary") : "")
+    ? panel("飞手分配与履约", pilots, pilotAction)
     : "";
   return panel("订单状态", `<div class="steps steps--flow">${orderSteps(order)}</div>
     <p class="muted order-flow-summary">本单流转：${orderFlowSummary(order)}</p>`, routeButton("返回订单列表","orders",""))
@@ -1220,17 +1420,26 @@ function orderDetailPage() {
 
 function trainingPage() {
   const rows = trainingRecords.map(item => [
-    item.id, item.contact, item.course, item.phone, item.appliedAt, tag(item.status),
-    opButton("查看 / 跟进", "training-follow")
+    item.id, item.contact, item.course, item.phone, item.appliedAt,
+    opRoute("查看详情", "training-detail", "", `data-training-id="${item.id}"`)
   ]);
   return panel("报名线索", `<div class="toolbar" style="margin-bottom:14px">
-    <input placeholder="联系人 / 手机号 / 课程"><select><option>全部状态</option><option>待联系</option><option>已联系</option><option>已转化</option><option>已关闭</option></select>${button("查询","filter","primary")}
-  </div>${paginatedTable("training", ["线索编号","联系人","课程意向","手机号","报名时间","状态","操作"], rows)}`);
+    <input placeholder="联系人 / 手机号 / 课程">${button("查询","filter","primary")}
+  </div>${paginatedTable("training", ["线索编号","联系人","课程意向","手机号","报名时间","操作"], rows)}`);
+}
+
+function trainingDetailPage() {
+  const item = activeTraining();
+  return panel("报名信息", detailGrid([
+    ["线索编号", item.id], ["联系人", item.contact], ["课程意向", item.course],
+    ["手机号", item.phone], ["报名时间", item.appliedAt],
+    ["备注", item.remark || "—", true], ["来源", item.source || "小程序"]
+  ]), routeButton("返回列表", "training", ""));
 }
 
 function pilotApplicationsPage() {
   const rows = pilotApplications.map(item => [
-    item.id, item.applicant, item.subject, item.company, item.appliedAt, tag(item.status),
+    item.id, item.applicant, item.subject, pilotCompanyName(item), item.appliedAt, tag(item.status),
     opRoute(item.status === "待审核" ? "审核" : "查看", "pilot-review", "", `data-pilot-app-id="${item.id}"`)
   ]);
   return panel("入驻申请", `<div class="toolbar" style="margin-bottom:14px">
@@ -1245,20 +1454,17 @@ function pilotReviewPage() {
     ? `<span class="tag green">已审核 · 只读查看</span>`
     : `${button("驳回申请","reject-pilot","danger")}${button("审核通过","approve-pilot","primary")}`;
   return panel("申请信息", detailGrid([
-    ["申请编号", app.id], ["申请人", app.applicant], ["联系电话", app.phone], ["所属主体", app.subject],
-    ["公司名称", app.company], ["公司电话", app.companyPhone], ["所在区域", app.area], ["申请时间", app.appliedAt],
-    ["当前状态", tag(app.status)]
+    ["申请编号", app.id], ["申请人", app.applicant], ["所属主体", app.subject], ["联系电话", app.phone],
+    ["出生年月", app.birthday], ["所在区域", app.area], ["申请时间", app.appliedAt], ["当前状态", tag(app.status)]
   ]), routeButton("返回申请列表","pilot-applications",""))
-  + panel("资质与设备资料", table(["资料类型","资料内容","状态"], [
-    ["身份证","身份证正反面",tag("已上传")],["操作执照","CAAC 超视距驾驶员",tag("已上传")],
-    ["无人机","DJI M350 RTK · SN: 3X****91",tag("已上传")]
-  ]), actions);
+  + pilotCompanyPanel(app.company)
+  + pilotQualificationPanel(app, actions);
 }
 
 function pilotsPage() {
   const rows = pilotRecords.map(item => [
-    item.name, item.subject, item.company, item.area, item.device, tag(item.status),
-    opRoute("查看详情", "pilot-detail")
+    item.name, item.subject, pilotCompanyName(item), item.area, item.droneModel, tag(item.status),
+    opRoute("查看详情", "pilot-detail", "", `data-pilot-id="${item.id}"`)
   ]);
   return panel("已认证飞手", `<div class="toolbar" style="margin-bottom:14px">
     <input placeholder="姓名 / 手机号 / 公司"><select><option>全部主体</option><option>个人</option><option>公司</option></select><select><option>全部状态</option><option>空闲</option><option>服务中</option></select>${button("查询","filter","primary")}
@@ -1266,13 +1472,17 @@ function pilotsPage() {
 }
 
 function pilotDetailPage() {
+  const pilot = activePilot();
   return panel("飞手资料", detailGrid([
-    ["姓名","李明"],["所属主体","公司"],["所属公司","成都低空服务有限公司"],["联系电话","138****9036"],
-    ["服务区域","成都高新"],["主要设备","Mavic 3E"],["认证时间","2026-05-22"],["当前状态",tag("服务中")]
+    ["姓名", pilot.name], ["所属主体", pilot.subject], ["联系电话", pilot.phone],
+    ["出生年月", pilot.birthday], ["所在区域", pilot.area],
+    ["认证时间", pilot.certifiedAt], ["当前状态", tag(pilot.status)]
   ]), routeButton("返回飞手列表","pilots",""))
+  + pilotCompanyPanel(pilot.company)
+  + pilotQualificationPanel(pilot)
   + panel("分配订单及个人完成状态", table(["订单号","服务","预约时间","订单状态","个人状态"], [
-    ["YB26061318","园区航拍测绘",formatOrderAppointmentBrief(orderRecords.find(item => item.id === "YB26061318")),tag("待服务"),tag("服务中")],
-    ["YB26060809","园区巡检","—",tag("已完成"),tag("已完成")]
+    ["YB26061318","园区航拍测绘",formatOrderAppointmentBrief(orderRecords.find(item => item.id === "YB26061318")),statusTag("待服务"),tag("服务中")],
+    ["YB26060809","园区巡检","—",statusTag("已完成"),tag("已完成")]
   ]));
 }
 
@@ -1329,7 +1539,7 @@ function pageContent() {
   const pages = {
     dashboard: dashboardPage, carousel: carouselPage, users: usersPage, "user-detail": userDetailPage,
     categories: categoriesPage, products: productsPage, "product-edit": productEditPage,
-    orders: ordersPage, "order-detail": orderDetailPage, training: trainingPage,
+    orders: ordersPage, "order-detail": orderDetailPage, training: trainingPage, "training-detail": trainingDetailPage,
     "pilot-applications": pilotApplicationsPage, "pilot-review": pilotReviewPage,
     pilots: pilotsPage, "pilot-detail": pilotDetailPage, tasks: tasksPage,
     invoices: invoicesPage, "invoice-detail": invoiceDetailPage, about: aboutPage
@@ -1564,6 +1774,8 @@ document.addEventListener("click", event => {
     if (route.dataset.orderId) state.viewingOrderId = route.dataset.orderId;
     if (route.dataset.invoiceId) state.viewingInvoiceId = route.dataset.invoiceId;
     if (route.dataset.pilotAppId) state.viewingPilotAppId = route.dataset.pilotAppId;
+    if (route.dataset.pilotId) state.viewingPilotId = route.dataset.pilotId;
+    if (route.dataset.trainingId) state.viewingTrainingId = route.dataset.trainingId;
     navigate(route.dataset.route);
     return;
   }
@@ -1744,11 +1956,14 @@ document.addEventListener("click", event => {
     pg.page++;
     render();
   } else if (action === "assign-pilots") {
+    if (target.dataset.orderId) state.viewingOrderId = target.dataset.orderId;
+    const order = activeOrder();
+    const modalTitle = order.status === "待服务" ? "调整飞手" : "分配飞手";
     const pilots = [
       ["李明","成都高新 · Mavic 3E","空闲",true],["王伟","成都双流 · M350 RTK","空闲",true],
       ["周航","成都双流 · M350 RTK","服务中",false],["赵宇","成都武侯 · Mavic 3E","空闲",false]
     ];
-    modal("分配飞手", `<p class="muted">可选择一个或多个审核通过的飞手。确认后立即生效，无需飞手再次确认。</p>
+    modal(modalTitle, `<p class="muted">可选择一个或多个审核通过的飞手。确认后立即生效，无需飞手再次确认。</p>
       ${pilots.map(p => `<label class="pilot-option"><input type="checkbox" name="pilot" value="${p[0]}" ${p[3] ? "checked" : ""}>
         <span><strong>${p[0]}</strong><br><span class="muted">${p[1]}</span></span>${tag(p[2])}</label>`).join("")}`,
       `${button("取消","close-modal")}${button("确认分配","confirm-assignment","primary")}`, true);
@@ -1760,19 +1975,14 @@ document.addEventListener("click", event => {
       toast("请至少选择一名飞手");
       return;
     }
+    const wasPending = order.status === "待派单";
     order.assignedPilots = selected.map((name, index) => ({
       name, area: index ? "成都双流" : "成都高新", device: index ? "M350 RTK" : "Mavic 3E", status: "待服务"
     }));
-    if (order.status === "待派单") order.status = "待服务";
+    if (wasPending) order.status = "待服务";
     closeModal();
     render();
-    toast(`已分配 ${selected.length} 名飞手，订单进入待服务`);
-  } else if (action === "training-follow") {
-    modal("培训报名跟进", formGrid([
-      { label: "联系人", html: `<input value="陈先生" disabled>` },
-      { label: "当前状态", html: `<select><option>待联系</option><option>已联系</option><option>已转化</option><option>已关闭</option></select>` },
-      { label: "跟进记录", wide: true, html: `<textarea placeholder="填写本次沟通结果"></textarea>` }
-    ]), `${button("取消","close-modal")}${button("保存跟进","save-modal","primary")}`);
+    toast(wasPending ? `已分配 ${selected.length} 名飞手，订单进入待服务` : `已更新飞手名单（${selected.length} 名）`);
   } else if (action === "approve-pilot") {
     modal("确认审核通过", `<p>确认该申请资料完整并通过飞手入驻审核？</p>`,
       `${button("取消","close-modal")}${button("确认通过","confirm-pilot","primary")}`);
